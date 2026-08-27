@@ -8,8 +8,8 @@
   // before that anyway - cmd.exe cannot use a UNC working directory.
   //
   // No backend is involved. lib/api.ts answers every call from fixtures in lib/mock.ts, so
-  // nothing is proxied and nothing needs to be running alongside these. The C# app is still
-  // in the repo (DrawingQC.Web) but the UI no longer talks to it.
+  // nothing is proxied and nothing needs to be running alongside these. The C# app that used
+  // to live here (DrawingQC.Web / DrawingQC.UI / DrawingQC.Core) has been removed from the repo.
   //
   // The serverReadyAction patterns below deliberately avoid regex backslash escapes: in a
   // JSON string every one has to be doubled, and a single missed pair silently breaks the
@@ -26,12 +26,12 @@
       "type": "node-terminal",
       "request": "launch",
       "command": "npm run dev",
-      "cwd": "${workspaceFolder}/drawingqc-ui",
+      "cwd": "${workspaceFolder}",
       "serverReadyAction": {
         "action": "debugWithChrome",
         "pattern": "Local: +(https?://[^ ]+)",
         "uriFormat": "%s",
-        "webRoot": "${workspaceFolder}/drawingqc-ui"
+        "webRoot": "${workspaceFolder}"
       }
     },
     {
@@ -40,7 +40,7 @@
       "type": "node-terminal",
       "request": "launch",
       "command": "npm run dev",
-      "cwd": "${workspaceFolder}/drawingqc-ui"
+      "cwd": "${workspaceFolder}"
     },
     {
       // Browser side only - point at a dev server you already have running. Use this rather
@@ -50,7 +50,7 @@
       "type": "chrome",
       "request": "launch",
       "url": "http://localhost:3000",
-      "webRoot": "${workspaceFolder}/drawingqc-ui"
+      "webRoot": "${workspaceFolder}"
     },
     {
       // Production bundle: `next build` then `next start -p 3000`. Worth running before
@@ -59,7 +59,7 @@
       "type": "node-terminal",
       "request": "launch",
       "command": "npm run build && npm run start",
-      "cwd": "${workspaceFolder}/drawingqc-ui",
+      "cwd": "${workspaceFolder}",
       "serverReadyAction": {
         "action": "openExternally",
         "pattern": "Local: +(https?://[^ ]+)",

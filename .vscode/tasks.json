@@ -5,7 +5,6 @@
       "label": "dev",
       "type": "npm",
       "script": "dev",
-      "path": "drawingqc-ui",
       "isBackground": true,
       "problemMatcher": [],
       "presentation": {
@@ -17,7 +16,6 @@
       "label": "build",
       "type": "npm",
       "script": "build",
-      "path": "drawingqc-ui",
       "group": {
         "kind": "build",
         "isDefault": true
@@ -28,7 +26,6 @@
       "label": "start",
       "type": "npm",
       "script": "start",
-      "path": "drawingqc-ui",
       "isBackground": true,
       "problemMatcher": []
     },
@@ -38,7 +35,7 @@
       "type": "shell",
       "command": "npx tsc --noEmit",
       "options": {
-        "cwd": "${workspaceFolder}/drawingqc-ui"
+        "cwd": "${workspaceFolder}"
       },
       "group": "test",
       "problemMatcher": "$tsc"

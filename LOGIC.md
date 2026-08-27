@@ -3,9 +3,12 @@
 What **QC Check**, **ConsList**, and **Booklet** actually do, written so the logic can be
 rebuilt in another language later (Next.js/TypeScript, Python/Frappe) without reading the C#.
 
-All three currently live in the C# backend and run on port **5001**.
+The C# backend that implemented all three has been **removed from this repo** — it is now a
+frontend-only Next.js project. This document is therefore the specification, not a summary of
+code you can open: the sources below exist only in git history, at commit `5b2f5b2` and earlier.
+Recover one with `git show 5b2f5b2:<path>`.
 
-| Tool | Source | Lines |
+| Tool | Source (historical, at `5b2f5b2`) | Lines |
 |---|---|---|
 | QC Check | `DrawingQC.UI/QcEngine.cs` | 221 |
 | ConsList | `DrawingQC.Web/ConsList.cs` | 311 |

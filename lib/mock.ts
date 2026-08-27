@@ -10,8 +10,10 @@ import type {
 /**
  * Standalone mode: canned answers standing in for the C# backend, so the UI runs on its own.
  *
- * This is the default. Set NEXT_PUBLIC_USE_BACKEND=1 to talk to the real DrawingQC.Web again
- * (see lib/api.ts) — the C# project is still in the repo, just no longer required to boot.
+ * This is the only mode that works today. The C# project (DrawingQC.Web) has been deleted from
+ * the repo and lives only in git history, so NEXT_PUBLIC_USE_BACKEND=1 has nothing to talk to
+ * until a replacement backend exists — the flag and the commented-out fetch helpers in
+ * lib/api.ts are kept as the seam to wire one up.
  *
  * Nothing here does real work: no PDF is read, no Excel is written, no drawing is compared.
  * Every count and status below is invented. It exists so each screen can be reached, styled

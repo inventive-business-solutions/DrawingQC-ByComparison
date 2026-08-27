@@ -9,12 +9,11 @@ React/Next.js front end for DrawingQC.
 ## Running it
 
 ```bash
-cd drawingqc-ui
 npm install
 npm run dev
 ```
 
-Open <http://localhost:3001>.
+Open <http://localhost:3000>.
 
 > Run this from **inside WSL**, not from Windows over `\\wsl.localhost\...`. Turbopack
 > rejects UNC paths and fails with *"Cannot depend on path … outside of root directory"*.

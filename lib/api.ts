@@ -17,8 +17,9 @@ import type { AnalyzeResponse, ConsAddResponse, ConsState, TagReportResponse, Us
  *
  * Every function here answers from ./mock and no request leaves the browser. All calls to the
  * C# backend (DrawingQC.Web) have been taken out; the fetch helpers and the real endpoints are
- * kept commented out at the bottom of this file so they can be restored, and the C# project is
- * still in the repo. Nothing in the UI depends on it any more.
+ * kept commented out at the bottom of this file so they can be restored against a future
+ * backend. The C# project itself is no longer in the repo — it was deleted once the UI stopped
+ * depending on it, and survives only in git history (last present at commit 5b2f5b2).
  *
  * Consequence worth remembering: none of this does real work. No PDF is read, no Excel is
  * written, no drawing is compared. Every row and count comes from a fixture.
