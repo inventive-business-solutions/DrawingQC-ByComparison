@@ -1,0 +1,13 @@
+{
+  "name": "drawingqc",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Repo-root shortcuts. The web UI is a separate package in drawingqc-ui/ — these scripts just forward to it so npm commands work from the repo root as well as from inside that folder.",
+  "scripts": {
+    "dev": "npm --prefix drawingqc-ui run dev",
+    "build": "npm --prefix drawingqc-ui run build",
+    "start": "npm --prefix drawingqc-ui run start",
+    "lint": "npm --prefix drawingqc-ui run lint",
+    "install:ui": "npm --prefix drawingqc-ui install"
+  }
+}

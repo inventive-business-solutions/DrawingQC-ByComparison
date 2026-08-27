@@ -1,0 +1,70 @@
+{
+  // Debug configs for the DrawingQC UI (Next.js App Router, dev server on :3000).
+  // Uses VS Code's built-in JavaScript debugger - no extensions required.
+  //
+  // Run these with VS Code connected to WSL ("Reopen Folder in WSL"). node_modules holds
+  // Linux-only native binaries (@next/swc-linux-x64-gnu, lightningcss-linux-x64-gnu,
+  // @tailwindcss/oxide-linux-x64-gnu), and launching from the Windows-side UNC path fails
+  // before that anyway - cmd.exe cannot use a UNC working directory.
+  //
+  // No backend is involved. lib/api.ts answers every call from fixtures in lib/mock.ts, so
+  // nothing is proxied and nothing needs to be running alongside these. The C# app is still
+  // in the repo (DrawingQC.Web) but the UI no longer talks to it.
+  //
+  // The serverReadyAction patterns below deliberately avoid regex backslash escapes: in a
+  // JSON string every one has to be doubled, and a single missed pair silently breaks the
+  // whole file. " +" and "[^ ]+" do the same job against Next's "- Local:   http://..." line.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      // One-click default: starts `next dev` (server-side breakpoints work in Server
+      // Components / route handlers) and opens Chrome attached to it, so breakpoints in
+      // Client Components hit too. Most of this app is client-side - AuthGate, QcView,
+      // ConsListView and TagReportView are all "use client" - so the browser half is
+      // where the useful breakpoints live.
+      "name": "Next.js: full stack",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev",
+      "cwd": "${workspaceFolder}/drawingqc-ui",
+      "serverReadyAction": {
+        "action": "debugWithChrome",
+        "pattern": "Local: +(https?://[^ ]+)",
+        "uriFormat": "%s",
+        "webRoot": "${workspaceFolder}/drawingqc-ui"
+      }
+    },
+    {
+      // Server side only: no browser is launched.
+      "name": "Next.js: dev server",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev",
+      "cwd": "${workspaceFolder}/drawingqc-ui"
+    },
+    {
+      // Browser side only - point at a dev server you already have running. Use this rather
+      // than a second "full stack" launch when the port is already taken; two dev servers on
+      // :3000 fail with EADDRINUSE.
+      "name": "Next.js: client (Chrome)",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}/drawingqc-ui"
+    },
+    {
+      // Production bundle: `next build` then `next start -p 3000`. Worth running before
+      // trusting a release - `next build` type-checks and lints, which `next dev` does not.
+      "name": "Next.js: prod (build + start)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run build && npm run start",
+      "cwd": "${workspaceFolder}/drawingqc-ui",
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "Local: +(https?://[^ ]+)",
+        "uriFormat": "%s"
+      }
+    }
+  ]
+}
