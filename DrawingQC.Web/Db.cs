@@ -414,4 +414,33 @@ CREATE TABLE IF NOT EXISTS mto_runs (
                     DO UPDATE SET excel_rev=excluded.excel_rev, pdf_rev=excluded.pdf_rev",
             ("p", platform), ("e", excel), ("f", pdf));
     }
+
+    // ---------- per-tool run history (best-effort: never breaks a tool run) ----------
+
+    private static void Record(string sql, params (string name, object value)[] ps)
+    {
+        if (!Enabled) return;
+        try { using var con = Open(); Exec(con, sql, ps); }
+        catch (Exception ex) { Console.Error.WriteLine("[Db] run-history insert failed: " + ex.Message); }
+    }
+
+    public static void RecordQcRun(string? userId, string? sourceName, int total, int matched, int unmatched, int duplicate, string? reportName) =>
+        Record(@"INSERT INTO qc_runs(id,user_id,source_name,total,matched,unmatched,duplicate,report_name)
+                 VALUES(@id,@u,@s,@t,@m,@un,@d,@r)",
+            ("id", Guid.NewGuid().ToString("N")), ("u", (object?)userId ?? DBNull.Value), ("s", (object?)sourceName ?? DBNull.Value),
+            ("t", total), ("m", matched), ("un", unmatched), ("d", duplicate), ("r", (object?)reportName ?? DBNull.Value));
+
+    public static void RecordTagreportRun(string? userId, int total, int delivered, int pending, int doneFiles, string? sheet, string? column, string? reportName) =>
+        Record(@"INSERT INTO tagreport_runs(id,user_id,total,delivered,pending,done_files,sheet,column_name,report_name)
+                 VALUES(@id,@u,@t,@dl,@pn,@df,@sh,@col,@r)",
+            ("id", Guid.NewGuid().ToString("N")), ("u", (object?)userId ?? DBNull.Value), ("t", total), ("dl", delivered),
+            ("pn", pending), ("df", doneFiles), ("sh", (object?)sheet ?? DBNull.Value), ("col", (object?)column ?? DBNull.Value),
+            ("r", (object?)reportName ?? DBNull.Value));
+
+    public static void RecordBookletRun(string? userId, string? templateName, string? excelName, string? drawingsName, string? bomName, string? outputName, string? rev, string? docDate, double sizeMb) =>
+        Record(@"INSERT INTO booklet_runs(id,user_id,template_name,excel_name,drawings_name,bom_name,output_name,rev,doc_date,size_mb)
+                 VALUES(@id,@u,@tn,@en,@dn,@bn,@on,@rv,@dt,@sz)",
+            ("id", Guid.NewGuid().ToString("N")), ("u", (object?)userId ?? DBNull.Value), ("tn", (object?)templateName ?? DBNull.Value),
+            ("en", (object?)excelName ?? DBNull.Value), ("dn", (object?)drawingsName ?? DBNull.Value), ("bn", (object?)bomName ?? DBNull.Value),
+            ("on", (object?)outputName ?? DBNull.Value), ("rv", (object?)rev ?? DBNull.Value), ("dt", (object?)docDate ?? DBNull.Value), ("sz", sizeMb));
 }

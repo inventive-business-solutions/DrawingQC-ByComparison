@@ -196,6 +196,8 @@ app.MapPost("/api/analyze", async (HttpRequest request) =>
             duplicate = results.Count(x => x.FinalStatus == "Duplicate"),
         };
 
+        DrawingQC.Web.Db.RecordQcRun(CurrentUser(request)?.Id, file.FileName, summary.total, summary.matched, summary.unmatched, summary.duplicate, reportName);
+
         return Results.Ok(new { reportToken = token, reportName, summary, rows });
     }
     catch (Exception ex)
@@ -319,6 +321,10 @@ app.MapPost("/api/booklet", async (HttpRequest request) =>
         lastBookletPdf = result.PdfPath;
         lastBookletDocx = result.DocxPath;
         var info = new FileInfo(result.PdfPath);
+        DrawingQC.Web.Db.RecordBookletRun(CurrentUser(request)?.Id,
+            Path.GetFileName(template), Path.GetFileName(excel), Path.GetFileName(drawings),
+            string.IsNullOrWhiteSpace(bom) ? null : Path.GetFileName(bom),
+            Path.GetFileName(result.PdfPath), rev, date, Math.Round(info.Length / 1024.0 / 1024.0, 1));
         return Results.Ok(new
         {
             ok = true,
@@ -373,6 +379,7 @@ app.MapPost("/api/kbr/tagreport", async (HttpRequest request) =>
         var result = await Task.Run(() => DrawingQC.Web.TagDeliveryReport.Build(excel, zip));
         var token = Guid.NewGuid().ToString("N");
         reports[token] = (result.Excel, "Tagwise Delivery Report.xlsx");
+        DrawingQC.Web.Db.RecordTagreportRun(CurrentUser(request)?.Id, result.Total, result.Delivered, result.Pending, result.DoneFiles, result.SheetUsed, result.Column, "Tagwise Delivery Report.xlsx");
         return Results.Ok(new
         {
             ok = true,
