@@ -8,26 +8,28 @@ namespace DrawingQC.Web;
 /// <summary>One file that was added to a platform's consolidation, stamped with the day it arrived.</summary>
 public sealed class ConsEntry
 {
-    public string Date { get; set; } = "";   // dd-MM-yyyy the file was added
-    public string Name { get; set; } = "";    // original file name
-    public int Count { get; set; }            // rows appended (Excel) or pages appended (PDF)
+    public string Id { get; set; } = "";      // stable id; the source file is stored as <Id><Ext>
+    public string Ext { get; set; } = "";      // ".xlsx" / ".xls" / ".pdf"
+    public string Date { get; set; } = "";     // dd-MM-yyyy the file was added
+    public string Name { get; set; } = "";     // original file name
+    public int Count { get; set; }             // rows (Excel) or pages (PDF) this file contributes
 }
 
 public sealed class CatManifest
 {
-    public int ExcelRev { get; set; }         // revisions shared (Rev 1,2,3…N) of the consolidated Excel
-    public int PdfRev { get; set; }           // …and of the consolidated PDF
-    public string LastExcelDate { get; set; } = ""; // last day a banner was written, so the date shows once per day
+    public int ExcelRev { get; set; }
+    public int PdfRev { get; set; }
+    public string LastExcelDate { get; set; } = "";
     public List<ConsEntry> ExcelEntries { get; set; } = new();
     public List<ConsEntry> PdfEntries { get; set; } = new();
 }
 
 /// <summary>
 /// S2NERGY "ConsList": per platform (RP5S, WHP13N, …) and per category (Internal / External),
-/// users add Excel + PDF files on a daily basis. Each Excel is appended, row-by-row and datewise,
-/// into one running consolidated Excel (typical supports); each PDF's pages are appended into one
-/// running consolidated PDF (unique supports). The file keeps growing — every download is the next
-/// revision (Rev N) that can be shared with the client mid-month or at month-end.
+/// users add MTO Excel + Unique PDF files daily. Every uploaded file is kept as a source; the
+/// consolidated Excel (rows, datewise banner) and consolidated PDF (pages) are rebuilt from those
+/// sources, so individual files can be deleted or replaced. Downloads are Internal / External /
+/// Combined, each bumping its own revision (Rev N).
 /// </summary>
 public static class ConsList
 {
@@ -59,6 +61,9 @@ public static class ConsList
     private static string XlsxPath(string p, string c) => Path.Combine(CatDir(p, c), "consolidated.xlsx");
     private static string PdfPath(string p, string c) => Path.Combine(CatDir(p, c), "consolidated.pdf");
     private static string ManifestPath(string p, string c) => Path.Combine(CatDir(p, c), "manifest.json");
+    private static string SourcesDir(string p, string c) { var d = Path.Combine(CatDir(p, c), "sources"); Directory.CreateDirectory(d); return d; }
+    private static string SourcePath(string p, string c, ConsEntry e) => Path.Combine(SourcesDir(p, c), e.Id + e.Ext);
+    private static void TryDelete(string path) { try { if (File.Exists(path)) File.Delete(path); } catch { } }
 
     // ---------- projects ----------
 
@@ -93,7 +98,6 @@ public static class ConsList
         }
     }
 
-    // Remove a project from the list and delete its stored consolidation (both categories).
     public static (bool ok, string err) RemoveProject(string name)
     {
         name = (name ?? "").Trim();
@@ -103,16 +107,10 @@ public static class ConsList
             var list = Projects();
             var match = list.FirstOrDefault(p => p.Equals(name, StringComparison.OrdinalIgnoreCase));
             if (match == null) return (false, "That project does not exist.");
-
             list.Remove(match);
             File.WriteAllText(ProjectsFile(), JsonSerializer.Serialize(list, JsonOpts));
-
-            try
-            {
-                var dir = Path.Combine(Root(), Safe(match));
-                if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
-            }
-            catch { /* list is already updated; leftover files are harmless */ }
+            try { var dir = Path.Combine(Root(), Safe(match)); if (Directory.Exists(dir)) Directory.Delete(dir, true); }
+            catch { }
             return (true, "");
         }
     }
@@ -130,86 +128,150 @@ public static class ConsList
     private static void SaveManifest(string p, string c, CatManifest m) =>
         File.WriteAllText(ManifestPath(p, c), JsonSerializer.Serialize(m, JsonOpts));
 
-    // ---------- merge ----------
-
-    // Append an uploaded Excel's rows (verbatim, no extra column) onto the consolidated workbook.
-    // When writeBanner is set, a single date row is written first so the date shows once per day.
-    // Returns the number of content rows appended.
-    private static int AppendExcel(string platform, string category, string sourcePath, string dateStr, bool writeBanner)
+    // Assign a stable id + extension to any legacy entry that lacks them. Returns true if changed.
+    private static bool EnsureIds(CatManifest m)
     {
+        bool ch = false;
+        foreach (var e in m.ExcelEntries)
+        {
+            if (string.IsNullOrEmpty(e.Id)) { e.Id = Guid.NewGuid().ToString("N"); ch = true; }
+            if (string.IsNullOrEmpty(e.Ext)) { var x = Path.GetExtension(e.Name).ToLowerInvariant(); e.Ext = (x == ".xls" || x == ".xlsx") ? x : ".xlsx"; ch = true; }
+        }
+        foreach (var e in m.PdfEntries)
+        {
+            if (string.IsNullOrEmpty(e.Id)) { e.Id = Guid.NewGuid().ToString("N"); ch = true; }
+            if (string.IsNullOrEmpty(e.Ext)) { e.Ext = ".pdf"; ch = true; }
+        }
+        return ch;
+    }
+
+    // ---------- source backfill (one-time, for data added before sources were kept) ----------
+
+    // Split the existing consolidated Excel back into per-entry source files (data rows only, no banner).
+    private static void BackfillExcel(string p, string c, CatManifest m)
+    {
+        if (!File.Exists(XlsxPath(p, c))) return;
+        using var wb = new XLWorkbook(XlsxPath(p, c));
+        if (!wb.TryGetWorksheet("Consolidated", out var ws)) ws = wb.Worksheets.First();
+        var used = ws.RangeUsed(); if (used == null) return;
+        int maxCol = used.LastColumn().ColumnNumber();
+        int r = 1; string? lastDate = null;
+        foreach (var e in m.ExcelEntries)
+        {
+            if (e.Date != lastDate) { r++; lastDate = e.Date; }   // skip the once-per-day banner row
+            var sp = SourcePath(p, c, e);
+            if (!File.Exists(sp))
+            {
+                using var ow = new XLWorkbook(); var os = ow.AddWorksheet("Sheet1");
+                for (int k = 0; k < e.Count; k++)
+                    for (int col = 1; col <= maxCol; col++) os.Cell(k + 1, col).Value = ws.Cell(r + k, col).Value;
+                ow.SaveAs(sp);
+            }
+            r += e.Count;
+        }
+    }
+
+    // Split the existing consolidated PDF back into per-entry source files by page count.
+    private static void BackfillPdf(string p, string c, CatManifest m)
+    {
+        if (!File.Exists(PdfPath(p, c))) return;
+        var bytes = File.ReadAllBytes(PdfPath(p, c));
+        int page = 0;
+        foreach (var e in m.PdfEntries)
+        {
+            var sp = SourcePath(p, c, e);
+            if (!File.Exists(sp))
+            {
+                using var src = PdfReader.Open(new MemoryStream(bytes), PdfDocumentOpenMode.Import);
+                using var od = new PdfDocument();
+                for (int k = 0; k < e.Count && page + k < src.PageCount; k++) od.AddPage(src.Pages[page + k]);
+                od.Save(sp);
+            }
+            page += e.Count;
+        }
+    }
+
+    private static void EnsureSources(string p, string c, CatManifest m)
+    {
+        EnsureIds(m);
+        if (m.ExcelEntries.Any(e => !File.Exists(SourcePath(p, c, e)))) BackfillExcel(p, c, m);
+        if (m.PdfEntries.Any(e => !File.Exists(SourcePath(p, c, e)))) BackfillPdf(p, c, m);
+    }
+
+    // ---------- build ----------
+
+    // Append one source workbook's rows (verbatim) into an open worksheet, with a date banner when asked.
+    private static int AppendSourceRows(IXLWorksheet ws, ref int destRow, string sourcePath, string date, bool banner)
+    {
+        if (!File.Exists(sourcePath)) return 0;
         using var src = new XLWorkbook(sourcePath);
-        var sws = src.Worksheets
-            .Select(s => (s, rows: s.RangeUsed()?.RowCount() ?? 0))
+        var sws = src.Worksheets.Select(s => (s, rows: s.RangeUsed()?.RowCount() ?? 0))
             .OrderByDescending(x => x.rows).Select(x => x.s).FirstOrDefault();
         var used = sws?.RangeUsed();
         if (sws == null || used == null) return 0;
+        int fr = used.FirstRow().RowNumber(), lr = used.LastRow().RowNumber();
+        int fc = used.FirstColumn().ColumnNumber(), lc = used.LastColumn().ColumnNumber();
 
-        int firstRow = used.FirstRow().RowNumber(), lastRow = used.LastRow().RowNumber();
-        int firstCol = used.FirstColumn().ColumnNumber(), lastCol = used.LastColumn().ColumnNumber();
-
-        var xlsx = XlsxPath(platform, category);
-        XLWorkbook wb;
-        IXLWorksheet ws;
-        if (File.Exists(xlsx))
-        {
-            wb = new XLWorkbook(xlsx);
-            if (!wb.TryGetWorksheet("Consolidated", out ws!)) ws = wb.Worksheets.First();
-        }
-        else
-        {
-            wb = new XLWorkbook();
-            ws = wb.AddWorksheet("Consolidated");
-        }
-
-        int destRow = (ws.LastRowUsed()?.RowNumber() ?? 0) + 1;
-
-        // Date shown once for the day, as a banner row above that day's data.
-        if (writeBanner)
+        if (banner)
         {
             var b = ws.Cell(destRow, 1);
-            b.Value = dateStr;
-            b.Style.Font.Bold = true;
-            b.Style.Fill.BackgroundColor = XLColor.FromArgb(0xDB, 0xE4, 0xF0);
+            b.Value = date; b.Style.Font.Bold = true; b.Style.Fill.BackgroundColor = XLColor.FromArgb(0xDB, 0xE4, 0xF0);
             destRow++;
         }
-
         int added = 0;
-        for (int r = firstRow; r <= lastRow; r++)
+        for (int r = fr; r <= lr; r++)
         {
             bool empty = true;
-            for (int c = firstCol; c <= lastCol; c++)
-                if (!sws.Cell(r, c).IsEmpty()) { empty = false; break; }
+            for (int col = fc; col <= lc; col++) if (!sws.Cell(r, col).IsEmpty()) { empty = false; break; }
             if (empty) continue;
-
             int dc = 1;
-            for (int c = firstCol; c <= lastCol; c++) ws.Cell(destRow, dc++).Value = sws.Cell(r, c).Value;
+            for (int col = fc; col <= lc; col++) ws.Cell(destRow, dc++).Value = sws.Cell(r, col).Value;
             destRow++; added++;
         }
-
-        ws.Columns().AdjustToContents();
-        wb.SaveAs(xlsx);
-        wb.Dispose();
         return added;
     }
 
-    // Append every page of an uploaded PDF onto the running consolidated PDF. Returns pages added.
-    private static int AppendPdf(string platform, string category, string sourcePath)
+    // Rebuild the consolidated Excel from all Excel sources (recomputing each entry's row count).
+    private static void RebuildExcel(string p, string c, CatManifest m)
     {
-        var pdfPath = PdfPath(platform, category);
-        PdfDocument outDoc = File.Exists(pdfPath)
-            ? PdfReader.Open(pdfPath, PdfDocumentOpenMode.Modify)
-            : new PdfDocument();
-        int pages = 0;
-        using (var s = PdfReader.Open(sourcePath, PdfDocumentOpenMode.Import))
-            for (int i = 0; i < s.PageCount; i++) { outDoc.AddPage(s.Pages[i]); pages++; }
-        outDoc.Save(pdfPath);
-        outDoc.Dispose();
-        return pages;
+        var xlsx = XlsxPath(p, c);
+        if (m.ExcelEntries.Count == 0) { TryDelete(xlsx); m.LastExcelDate = ""; return; }
+        using var wb = new XLWorkbook(); var ws = wb.AddWorksheet("Consolidated");
+        int destRow = 1; string? lastDate = null;
+        foreach (var e in m.ExcelEntries)
+        {
+            bool banner = e.Date != lastDate;
+            e.Count = AppendSourceRows(ws, ref destRow, SourcePath(p, c, e), e.Date, banner);
+            lastDate = e.Date;
+        }
+        ws.Columns().AdjustToContents();
+        wb.SaveAs(xlsx);
+        m.LastExcelDate = m.ExcelEntries[^1].Date;
     }
 
+    // Rebuild the consolidated PDF from all PDF sources (recomputing each entry's page count).
+    private static void RebuildPdf(string p, string c, CatManifest m)
+    {
+        var pdfPath = PdfPath(p, c);
+        if (m.PdfEntries.Count == 0) { TryDelete(pdfPath); return; }
+        using var outDoc = new PdfDocument();
+        foreach (var e in m.PdfEntries)
+        {
+            var sp = SourcePath(p, c, e);
+            if (!File.Exists(sp)) { e.Count = 0; continue; }
+            using var s = PdfReader.Open(sp, PdfDocumentOpenMode.Import);
+            int cnt = 0;
+            for (int i = 0; i < s.PageCount; i++) { outDoc.AddPage(s.Pages[i]); cnt++; }
+            e.Count = cnt;
+        }
+        outDoc.Save(pdfPath);
+    }
+
+    // ---------- add ----------
+
     /// <summary>
-    /// Add a batch of uploaded files (already buffered to temp paths). Each .xlsx/.xls appends to the
-    /// consolidated Excel; each .pdf appends to the consolidated PDF. Returns per-batch totals + any errors.
+    /// Add a batch of uploaded files. Each file is saved as a source and appended to the consolidated
+    /// Excel/PDF. Returns per-batch totals + any errors.
     /// </summary>
     public static (int excelRows, int pdfPages, int excelFiles, int pdfFiles, List<string> errors) Add(
         string platform, string category, IEnumerable<(string name, string tempPath)> files)
@@ -217,6 +279,7 @@ public static class ConsList
         lock (Gate)
         {
             var m = LoadManifest(platform, category);
+            EnsureIds(m);
             string date = DateTime.Now.ToString("dd-MM-yyyy");
             int rows = 0, pages = 0, ef = 0, pf = 0;
             var errors = new List<string>();
@@ -229,16 +292,19 @@ public static class ConsList
                 {
                     if (ext is ".xlsx" or ".xls")
                     {
-                        int n = AppendExcel(platform, category, temp, date, bannerPending);
-                        bannerPending = false;        // date banner is written once per day
-                        m.LastExcelDate = date;
-                        m.ExcelEntries.Add(new ConsEntry { Date = date, Name = name, Count = n });
+                        var e = new ConsEntry { Id = Guid.NewGuid().ToString("N"), Ext = ext, Date = date, Name = name };
+                        File.Copy(temp, SourcePath(platform, category, e), true);
+                        int n = AppendExcel(platform, category, SourcePath(platform, category, e), date, bannerPending);
+                        bannerPending = false; m.LastExcelDate = date;
+                        e.Count = n; m.ExcelEntries.Add(e);
                         rows += n; ef++;
                     }
                     else if (ext == ".pdf")
                     {
-                        int n = AppendPdf(platform, category, temp);
-                        m.PdfEntries.Add(new ConsEntry { Date = date, Name = name, Count = n });
+                        var e = new ConsEntry { Id = Guid.NewGuid().ToString("N"), Ext = ".pdf", Date = date, Name = name };
+                        File.Copy(temp, SourcePath(platform, category, e), true);
+                        int n = AppendPdf(platform, category, SourcePath(platform, category, e));
+                        e.Count = n; m.PdfEntries.Add(e);
                         pages += n; pf++;
                     }
                     else errors.Add($"{name}: only .xlsx/.xls and .pdf are supported.");
@@ -251,7 +317,105 @@ public static class ConsList
         }
     }
 
-    /// <summary>Full state for the UI: projects + per platform/category totals and the datewise add log.</summary>
+    // Incrementally append one Excel source onto the existing consolidated workbook (used by Add).
+    private static int AppendExcel(string platform, string category, string sourcePath, string dateStr, bool writeBanner)
+    {
+        var xlsx = XlsxPath(platform, category);
+        XLWorkbook wb; IXLWorksheet ws;
+        if (File.Exists(xlsx)) { wb = new XLWorkbook(xlsx); if (!wb.TryGetWorksheet("Consolidated", out ws!)) ws = wb.Worksheets.First(); }
+        else { wb = new XLWorkbook(); ws = wb.AddWorksheet("Consolidated"); }
+        int destRow = (ws.LastRowUsed()?.RowNumber() ?? 0) + 1;
+        int n = AppendSourceRows(ws, ref destRow, sourcePath, dateStr, writeBanner);
+        ws.Columns().AdjustToContents();
+        wb.SaveAs(xlsx);
+        wb.Dispose();
+        return n;
+    }
+
+    // Incrementally append one PDF source onto the existing consolidated PDF (used by Add).
+    private static int AppendPdf(string platform, string category, string sourcePath)
+    {
+        var pdfPath = PdfPath(platform, category);
+        PdfDocument outDoc = File.Exists(pdfPath) ? PdfReader.Open(pdfPath, PdfDocumentOpenMode.Modify) : new PdfDocument();
+        int pages = 0;
+        using (var s = PdfReader.Open(sourcePath, PdfDocumentOpenMode.Import))
+            for (int i = 0; i < s.PageCount; i++) { outDoc.AddPage(s.Pages[i]); pages++; }
+        outDoc.Save(pdfPath);
+        outDoc.Dispose();
+        return pages;
+    }
+
+    // ---------- delete / replace ----------
+
+    /// <summary>Delete the given files (by id) across both categories, then rebuild what's left.</summary>
+    public static (bool ok, string err, int deleted) DeleteFiles(string platform, IEnumerable<string> ids)
+    {
+        lock (Gate)
+        {
+            var idset = new HashSet<string>((ids ?? Enumerable.Empty<string>()).Where(s => !string.IsNullOrWhiteSpace(s)));
+            if (idset.Count == 0) return (false, "No files selected.", 0);
+
+            int deleted = 0;
+            foreach (var c in Categories)
+            {
+                var m = LoadManifest(platform, c);
+                EnsureIds(m);
+                bool touchedExcel = m.ExcelEntries.Any(e => idset.Contains(e.Id));
+                bool touchedPdf = m.PdfEntries.Any(e => idset.Contains(e.Id));
+                if (!touchedExcel && !touchedPdf) continue;
+
+                EnsureSources(platform, c, m);   // make sure remaining files can be rebuilt
+                foreach (var e in m.ExcelEntries.Where(e => idset.Contains(e.Id)).ToList()) { TryDelete(SourcePath(platform, c, e)); m.ExcelEntries.Remove(e); deleted++; }
+                foreach (var e in m.PdfEntries.Where(e => idset.Contains(e.Id)).ToList()) { TryDelete(SourcePath(platform, c, e)); m.PdfEntries.Remove(e); deleted++; }
+                if (touchedExcel) RebuildExcel(platform, c, m);
+                if (touchedPdf) RebuildPdf(platform, c, m);
+                SaveManifest(platform, c, m);
+            }
+            return deleted == 0 ? (false, "Selected files were not found.", 0) : (true, "", deleted);
+        }
+    }
+
+    /// <summary>Replace one file (by id) with a newly uploaded file of the same kind, then rebuild.</summary>
+    public static (bool ok, string err) ReplaceFile(string platform, string id, string name, string tempPath)
+    {
+        lock (Gate)
+        {
+            if (string.IsNullOrWhiteSpace(id)) return (false, "No file selected to replace.");
+            var ext = Path.GetExtension(name).ToLowerInvariant();
+            foreach (var c in Categories)
+            {
+                var m = LoadManifest(platform, c);
+                EnsureIds(m);
+                var xe = m.ExcelEntries.FirstOrDefault(e => e.Id == id);
+                var pe = m.PdfEntries.FirstOrDefault(e => e.Id == id);
+                if (xe == null && pe == null) continue;
+
+                EnsureSources(platform, c, m);
+                if (xe != null)
+                {
+                    if (ext is not (".xlsx" or ".xls")) return (false, "Replace an Excel file with an .xlsx / .xls file.");
+                    TryDelete(SourcePath(platform, c, xe));
+                    xe.Ext = ext; xe.Name = name;
+                    File.Copy(tempPath, SourcePath(platform, c, xe), true);
+                    RebuildExcel(platform, c, m);
+                }
+                else
+                {
+                    if (ext != ".pdf") return (false, "Replace a PDF with a .pdf file.");
+                    File.Copy(tempPath, SourcePath(platform, c, pe!), true);
+                    pe!.Name = name;
+                    RebuildPdf(platform, c, m);
+                }
+                SaveManifest(platform, c, m);
+                return (true, "");
+            }
+            return (false, "That file was not found.");
+        }
+    }
+
+    // ---------- state ----------
+
+    /// <summary>Full state for the UI: projects + per platform/category totals and the datewise file log.</summary>
     public static object State()
     {
         lock (Gate)
@@ -264,8 +428,9 @@ public static class ConsList
                 foreach (var c in Categories)
                 {
                     var m = LoadManifest(p, c);
-                    var log = m.ExcelEntries.Select(e => new { e.Date, e.Name, e.Count, type = "Excel" })
-                        .Concat(m.PdfEntries.Select(e => new { e.Date, e.Name, e.Count, type = "PDF" }))
+                    if (EnsureIds(m)) SaveManifest(p, c, m);   // so the UI can reference each file
+                    var log = m.ExcelEntries.Select(e => new { e.Id, e.Date, e.Name, e.Count, type = "Excel" })
+                        .Concat(m.PdfEntries.Select(e => new { e.Id, e.Date, e.Name, e.Count, type = "PDF" }))
                         .OrderBy(e => DateTime.TryParseExact(e.Date, "dd-MM-yyyy", null,
                             System.Globalization.DateTimeStyles.None, out var d) ? d : DateTime.MaxValue)
                         .ToList();
@@ -288,24 +453,82 @@ public static class ConsList
         }
     }
 
-    /// <summary>Read the consolidated file for download, bumping its revision (each share = the next Rev N).</summary>
-    public static (byte[]? bytes, string fileName, int rev, string? err) Download(string platform, string category, string type)
+    // ---------- download ----------
+
+    private sealed class CombinedRev { public int ExcelRev { get; set; } public int PdfRev { get; set; } }
+    private static string CombinedFile(string p) => Path.Combine(Root(), Safe(p), "_combined.json");
+
+    private static int BumpCombinedRev(string platform, bool excel)
+    {
+        Directory.CreateDirectory(Path.Combine(Root(), Safe(platform)));
+        var f = CombinedFile(platform);
+        CombinedRev cr;
+        try { cr = File.Exists(f) ? (JsonSerializer.Deserialize<CombinedRev>(File.ReadAllText(f)) ?? new()) : new(); }
+        catch { cr = new(); }
+        int rev = excel ? ++cr.ExcelRev : ++cr.PdfRev;
+        File.WriteAllText(f, JsonSerializer.Serialize(cr, JsonOpts));
+        return rev;
+    }
+
+    private static (byte[]? bytes, string? err) BuildCombinedExcel(string platform)
+    {
+        var iPath = XlsxPath(platform, "Internal");
+        var ePath = XlsxPath(platform, "External");
+        bool hasI = File.Exists(iPath), hasE = File.Exists(ePath);
+        if (!hasI && !hasE) return (null, "No Excel has been added for Internal or External yet.");
+        using var outWb = new XLWorkbook();
+        if (hasI) { using var w = new XLWorkbook(iPath); w.Worksheets.First().CopyTo(outWb, "Internal"); }
+        if (hasE) { using var w = new XLWorkbook(ePath); w.Worksheets.First().CopyTo(outWb, "External"); }
+        using var ms = new MemoryStream();
+        outWb.SaveAs(ms);
+        return (ms.ToArray(), null);
+    }
+
+    private static (byte[]? bytes, string? err) BuildCombinedPdf(string platform)
+    {
+        var iPath = PdfPath(platform, "Internal");
+        var ePath = PdfPath(platform, "External");
+        bool hasI = File.Exists(iPath), hasE = File.Exists(ePath);
+        if (!hasI && !hasE) return (null, "No PDF has been added for Internal or External yet.");
+        using var outDoc = new PdfDocument();
+        foreach (var (has, path) in new[] { (hasI, iPath), (hasE, ePath) })
+        {
+            if (!has) continue;
+            using var s = PdfReader.Open(path, PdfDocumentOpenMode.Import);
+            for (int i = 0; i < s.PageCount; i++) outDoc.AddPage(s.Pages[i]);
+        }
+        using var ms = new MemoryStream();
+        outDoc.Save(ms, false);
+        return (ms.ToArray(), null);
+    }
+
+    /// <summary>Read a consolidated file. scope = Internal | External | Combined; type = excel | pdf. Bumps revision.</summary>
+    public static (byte[]? bytes, string fileName, string? err) Download(string platform, string type, string scope)
     {
         lock (Gate)
         {
             bool excel = type.Equals("excel", StringComparison.OrdinalIgnoreCase);
+            string ext = excel ? "xlsx" : "pdf";
+            string kind = excel ? "MTO" : "Unique";
+
+            if (scope.Equals("Combined", StringComparison.OrdinalIgnoreCase))
+            {
+                var (bytes, err) = excel ? BuildCombinedExcel(platform) : BuildCombinedPdf(platform);
+                if (bytes == null) return (null, "", err);
+                int rev = BumpCombinedRev(platform, excel);
+                return (bytes, $"{Safe(platform)}_Combined_{kind}_Rev{rev}_{DateTime.Now:yyyy-MM-dd}.{ext}", null);
+            }
+
+            string category = scope.Equals("External", StringComparison.OrdinalIgnoreCase) ? "External" : "Internal";
             var path = excel ? XlsxPath(platform, category) : PdfPath(platform, category);
             if (!File.Exists(path))
-                return (null, "", 0, excel ? "No Excel has been added for this platform yet." : "No PDF has been added for this platform yet.");
+                return (null, "", excel ? $"No {category} Excel has been added yet." : $"No {category} PDF has been added yet.");
 
             var m = LoadManifest(platform, category);
-            int rev = excel ? ++m.ExcelRev : ++m.PdfRev;
+            int r = excel ? ++m.ExcelRev : ++m.PdfRev;
             SaveManifest(platform, category, m);
-
-            var bytes = File.ReadAllBytes(path);
-            string ext = excel ? "xlsx" : "pdf";
-            string fileName = $"{Safe(platform)}_{Safe(category)}_Consolidated_Rev{rev}_{DateTime.Now:yyyy-MM-dd}.{ext}";
-            return (bytes, fileName, rev, null);
+            var b = File.ReadAllBytes(path);
+            return (b, $"{Safe(platform)}_{category}_{kind}_Rev{r}_{DateTime.Now:yyyy-MM-dd}.{ext}", null);
         }
     }
 }

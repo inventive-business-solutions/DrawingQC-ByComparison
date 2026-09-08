@@ -458,13 +458,52 @@ app.MapPost("/api/conslist/add", async (HttpRequest request) =>
     }
 });
 
-// Download the consolidated Excel or PDF (bumps the revision — each share = the next Rev N).
-app.MapGet("/api/conslist/download", (HttpRequest request, string platform, string category, string type) =>
+// Delete one or more files (by id) from a platform, then rebuild the consolidated Excel/PDF.
+app.MapPost("/api/conslist/file/delete", (HttpRequest request, ConsDeleteDto dto) =>
+{
+    if (CurrentUser(request) == null)
+        return Results.Json(new { error = "Please sign in first." }, statusCode: 401);
+    if (string.IsNullOrWhiteSpace(dto.platform))
+        return Results.BadRequest(new { error = "No platform selected." });
+    var (ok, err, deleted) = DrawingQC.Web.ConsList.DeleteFiles(dto.platform, dto.ids ?? Array.Empty<string>());
+    return ok ? Results.Ok(new { ok = true, deleted }) : Results.BadRequest(new { error = err });
+});
+
+// Replace one file (by id) with a newly uploaded file of the same kind, then rebuild.
+app.MapPost("/api/conslist/file/replace", async (HttpRequest request) =>
+{
+    if (CurrentUser(request) == null)
+        return Results.Json(new { error = "Please sign in first." }, statusCode: 401);
+    if (!request.HasFormContentType)
+        return Results.BadRequest(new { error = "Expected a multipart form upload." });
+
+    var form = await request.ReadFormAsync();
+    string platform = form["platform"].ToString().Trim();
+    string id = form["id"].ToString().Trim();
+    var file = form.Files.GetFile("file");
+    if (string.IsNullOrWhiteSpace(platform) || string.IsNullOrWhiteSpace(id))
+        return Results.BadRequest(new { error = "Missing platform or file id." });
+    if (file is null || file.Length == 0)
+        return Results.BadRequest(new { error = "No replacement file was uploaded." });
+
+    var tmp = Path.Combine(Path.GetTempPath(), $"cons_{Guid.NewGuid():N}{Path.GetExtension(file.FileName)}");
+    try
+    {
+        await using (var fs = File.Create(tmp)) await file.CopyToAsync(fs);
+        var (ok, err) = await Task.Run(() => DrawingQC.Web.ConsList.ReplaceFile(platform, id, file.FileName, tmp));
+        return ok ? Results.Ok(new { ok = true }) : Results.BadRequest(new { error = err });
+    }
+    catch (Exception ex) { return Results.Problem("Replace failed: " + (string.IsNullOrWhiteSpace(ex.Message) ? ex.GetType().Name : ex.Message)); }
+    finally { try { File.Delete(tmp); } catch { } }
+});
+
+// Download a consolidated file (bumps the revision). type = excel|pdf, scope = Internal|External|Combined.
+app.MapGet("/api/conslist/download", (HttpRequest request, string platform, string type, string scope) =>
 {
     if (CurrentUser(request) == null)
         return Results.Json(new { error = "Please sign in first." }, statusCode: 401);
 
-    var (bytes, fileName, _, err) = DrawingQC.Web.ConsList.Download(platform, category, type);
+    var (bytes, fileName, err) = DrawingQC.Web.ConsList.Download(platform, type, scope);
     if (bytes == null) return Results.BadRequest(new { error = err });
     var ctype = type.Equals("excel", StringComparison.OrdinalIgnoreCase)
         ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -521,3 +560,4 @@ record AdminResetDto(string? id, string? password);
 record AdminIdDto(string? id);
 record RegToggleDto(bool open);
 record ConsProjectDto(string? name);
+record ConsDeleteDto(string? platform, string[]? ids);

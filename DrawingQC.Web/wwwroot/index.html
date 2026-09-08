@@ -439,6 +439,29 @@
        #view-conslist .cl-num { font-size:24px; font-weight:800; color:var(--ink); }
        #view-conslist .cl-cap { font-size:12.5px; color:var(--muted); margin-top:3px; }
        #view-conslist .cl-actions { display:flex; gap:12px; flex-wrap:wrap; margin:6px 0 18px; }
+       #view-conslist .cl-sections { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:18px; }
+       #view-conslist .cl-sec { background:#fff; border:1px solid var(--border); border-radius:16px; padding:16px 16px 14px; }
+       #view-conslist .cl-sec-head { display:flex; align-items:baseline; gap:10px; margin-bottom:12px; }
+       #view-conslist .cl-sec-title { font-size:16px; font-weight:800; color:var(--accent); letter-spacing:.02em; }
+       #view-conslist .cl-sec-note { font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--faint); font-weight:600; }
+       #view-conslist .cl-sub-drops { display:flex; gap:12px; }
+       #view-conslist .cl-sub-drops .cl-drop { flex:1; min-width:0; padding:16px 12px; }
+       #view-conslist .cl-drop .cl-st { color:var(--faint); font-size:12px; margin:6px 0 0; }
+       #view-conslist .cl-drop .cl-st.has { color:#166534; font-weight:600; }
+       #view-conslist .cl-dl-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:14px; }
+       #view-conslist .cl-dl-lbl { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin-right:2px; }
+       #view-conslist .cl-dl-row .cl-btn { padding:7px 14px; font-size:13px; }
+       #view-conslist td.sc { color:var(--muted); font-weight:600; }
+       #view-conslist .cl-chk { width:16px; height:16px; cursor:pointer; }
+       #view-conslist td.cl-chk-td { padding-right:10px; }
+       #view-conslist .cl-row-btn { border:1px solid var(--border); background:#fff; color:var(--ink); border-radius:7px; padding:4px 10px; font-size:12px; cursor:pointer; }
+       #view-conslist .cl-row-btn:hover { background:#f4f3ff; border-color:var(--accent); }
+       #view-conslist .cl-row-btn.cl-del2 { color:#b91c1c; border-color:#f3c2c2; }
+       #view-conslist .cl-row-btn.cl-del2:hover { background:#fef2f2; }
+       #view-conslist .cl-bulk { display:flex; align-items:center; gap:12px; margin:12px 0 0; padding:10px 14px; background:#eef2ff; border:1px solid #d5dcfb; border-radius:10px; }
+       #view-conslist .cl-bulk #cl-bulk-count { font-weight:600; color:var(--ink); font-size:13.5px; }
+       #view-conslist .cl-bulk .cl-btn { padding:7px 14px; font-size:13px; }
+       @media (max-width:1100px){ #view-conslist .cl-sections { grid-template-columns:1fr; } }
        #view-conslist .cl-results { background:#fff; border:1px solid var(--border); border-radius:14px; padding:16px; overflow-x:auto; }
        #view-conslist table { width:auto; border-collapse:collapse; font-size:13.5px; }
        #view-conslist td { padding:8px 26px 8px 10px; border-bottom:1px solid var(--border); color:var(--ink); white-space:nowrap; }
@@ -455,7 +478,7 @@
 
      <div class="mhead">
        <h1>ConsList</h1>
-       <p class="cl-sub"><span class="client-tag">S2NERGY</span> Add Excel &amp; PDF daily per platform — each is merged, datewise, into one running consolidated file to share with the client (Rev 1, 2, 3…N).</p>
+       <p class="cl-sub"><span class="client-tag">S2NERGY</span> Per platform, add MTO Excel and Unique PDF files for Internal and External. Each stream is merged datewise; download Internal, External, or Combined (Rev 1, 2, 3…N).</p>
      </div>
 
      <div class="cl-bar">
@@ -467,14 +490,6 @@
          </div>
        </div>
        <div class="cl-field">
-         <label for="cl-category">Type</label>
-         <select id="cl-category">
-           <option value="" disabled selected>Select type</option>
-           <option value="Internal">Internal</option>
-           <option value="External">External</option>
-         </select>
-       </div>
-       <div class="cl-field">
          <label>Add a new project</label>
          <div class="cl-add">
            <input type="text" id="cl-newproj" placeholder="e.g. RP7N" autocomplete="off">
@@ -484,35 +499,70 @@
        </div>
      </div>
 
-     <div class="cl-drops">
-       <div class="cl-drop" id="cl-drop-excel">
-         <div class="cl-ic"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="m9 13 6 6M15 13l-6 6"/></svg></div>
-         <span class="cl-tag">Typical supports</span>
-         <h3>Add Excel</h3>
-         <p>Drop .xlsx / .xls here, or click to choose. Rows are appended datewise into the consolidated Excel.</p>
-         <input type="file" id="cl-file-excel" accept=".xlsx,.xls" multiple hidden>
-       </div>
-       <div class="cl-drop" id="cl-drop-pdf">
-         <div class="cl-ic"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15h6M9 18h6M9 12h2"/></svg></div>
-         <span class="cl-tag">Unique supports</span>
-         <h3>Add PDF</h3>
-         <p>Drop .pdf here, or click to choose. Pages are appended into the consolidated PDF.</p>
-         <input type="file" id="cl-file-pdf" accept=".pdf" multiple hidden>
-       </div>
-     </div>
+     <div class="cl-sections">
+       <!-- MTO: Excel, Internal + External -->
+       <section class="cl-sec">
+         <div class="cl-sec-head"><span class="cl-sec-title">MTO</span><span class="cl-sec-note">Excel · typical supports</span></div>
+         <div class="cl-sub-drops">
+           <div class="cl-drop" id="cl-drop-mto-int" data-cat="Internal">
+             <span class="cl-tag">Internal</span>
+             <h3>Add Excel</h3>
+             <p class="cl-st" id="cl-st-mto-int">Drop .xlsx / .xls, or click.</p>
+             <input type="file" id="cl-file-mto-int" accept=".xlsx,.xls" multiple hidden>
+           </div>
+           <div class="cl-drop" id="cl-drop-mto-ext" data-cat="External">
+             <span class="cl-tag">External</span>
+             <h3>Add Excel</h3>
+             <p class="cl-st" id="cl-st-mto-ext">Drop .xlsx / .xls, or click.</p>
+             <input type="file" id="cl-file-mto-ext" accept=".xlsx,.xls" multiple hidden>
+           </div>
+         </div>
+         <div class="cl-dl-row">
+           <span class="cl-dl-lbl">Download Excel</span>
+           <button type="button" class="cl-btn ghost" id="cl-dl-mto-int">Internal</button>
+           <button type="button" class="cl-btn ghost" id="cl-dl-mto-ext">External</button>
+           <button type="button" class="cl-btn" id="cl-dl-mto-comb">Combined</button>
+         </div>
+       </section>
 
-     <div class="cl-cards" id="cl-cards"></div>
-
-     <div class="cl-actions">
-       <button type="button" class="cl-btn" id="cl-dl-excel">Download consolidated Excel</button>
-       <button type="button" class="cl-btn" id="cl-dl-pdf">Download consolidated PDF</button>
+       <!-- UNIQUE: PDF, Internal + External -->
+       <section class="cl-sec">
+         <div class="cl-sec-head"><span class="cl-sec-title">Unique</span><span class="cl-sec-note">PDF · unique supports</span></div>
+         <div class="cl-sub-drops">
+           <div class="cl-drop" id="cl-drop-uniq-int" data-cat="Internal">
+             <span class="cl-tag">Internal</span>
+             <h3>Add PDF</h3>
+             <p class="cl-st" id="cl-st-uniq-int">Drop .pdf, or click.</p>
+             <input type="file" id="cl-file-uniq-int" accept=".pdf" multiple hidden>
+           </div>
+           <div class="cl-drop" id="cl-drop-uniq-ext" data-cat="External">
+             <span class="cl-tag">External</span>
+             <h3>Add PDF</h3>
+             <p class="cl-st" id="cl-st-uniq-ext">Drop .pdf, or click.</p>
+             <input type="file" id="cl-file-uniq-ext" accept=".pdf" multiple hidden>
+           </div>
+         </div>
+         <div class="cl-dl-row">
+           <span class="cl-dl-lbl">Download PDF</span>
+           <button type="button" class="cl-btn ghost" id="cl-dl-uniq-int">Internal</button>
+           <button type="button" class="cl-btn ghost" id="cl-dl-uniq-ext">External</button>
+           <button type="button" class="cl-btn" id="cl-dl-uniq-comb">Combined</button>
+         </div>
+       </section>
      </div>
 
      <div id="cl-msg" class="cl-msg" style="display:none;"></div>
 
+     <div id="cl-bulk" class="cl-bulk" style="display:none;">
+       <span id="cl-bulk-count">0 selected</span>
+       <button type="button" class="cl-btn cl-del" id="cl-bulk-del">Delete selected</button>
+       <button type="button" class="cl-btn ghost" id="cl-bulk-clear">Clear</button>
+     </div>
+     <input type="file" id="cl-replace-input" hidden>
+
      <div class="cl-results">
        <table>
-         <tbody id="cl-log"><tr><td colspan="3" class="cl-empty">No files added yet for this platform.</td></tr></tbody>
+         <tbody id="cl-log"><tr><td colspan="7" class="cl-empty">No files added yet for this platform.</td></tr></tbody>
        </table>
      </div>
    </div><!-- /view-conslist -->
@@ -1170,6 +1220,9 @@
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
     const $ = id => document.getElementById(id);
     let state = null;
+    let rowOrder = [];        // flat file order for shift-range selection
+    let lastIdx = null;       // last checkbox index clicked (for shift-select)
+    let replaceTarget = null; // id of the file currently being replaced
 
     function msg(text, kind) {
       const m = $('cl-msg'); if (!m) return;
@@ -1197,56 +1250,93 @@
     }
     window.loadConsList = loadConsList;
 
-    function current() {
-      if (!state) return null;
-      const p = $('cl-project').value, c = $('cl-category').value;
-      const d = (state.data && state.data[p] && state.data[p][c]) || null;
-      return { p, c, d };
+    function pdata() {
+      const p = state ? $('cl-project').value : '';
+      const d = (state && state.data && state.data[p]) || null;
+      return { p, i: d ? d.Internal : null, e: d ? d.External : null };
     }
 
-    const card = (n, cap) => '<div class="cl-card"><div class="cl-num">' + esc(n) + '</div><div class="cl-cap">' + esc(cap) + '</div></div>';
+    const dkey = d => { const m = /^(\d{2})-(\d{2})-(\d{4})$/.exec(d || ''); return m ? new Date(+m[3], +m[2]-1, +m[1]).getTime() : Number.MAX_SAFE_INTEGER; };
+
+    function setSt(id, has, txt, prompt) {
+      const el = $(id); if (!el) return;
+      el.textContent = has ? txt : prompt;
+      el.classList.toggle('has', !!has);
+    }
 
     function render() {
-      const cur = current(); const cards = $('cl-cards'), log = $('cl-log');
-      if (!cards || !log) return;
-      if (!cur || !cur.d) { cards.innerHTML = ''; log.innerHTML = '<tr><td colspan="3" class="cl-empty">No files added yet for this platform.</td></tr>'; return; }
-      const d = cur.d;
-      cards.innerHTML =
-        card(d.excelFiles, 'Excel files added') +
-        card(d.excelRows, 'Rows · typical supports') +
-        card(d.pdfFiles, 'PDF files added') +
-        card(d.pdfPages, 'Pages · unique supports') +
-        card('Rev ' + d.excelRev, 'Excel revisions shared') +
-        card('Rev ' + d.pdfRev, 'PDF revisions shared');
-      if (!d.log || !d.log.length) { log.innerHTML = '<tr><td colspan="3" class="cl-empty">No files added yet for this platform.</td></tr>'; return; }
+      const { p, i, e } = pdata();
+      const log = $('cl-log'); if (!log) return;
+
+      setSt('cl-st-mto-int', i && i.excelFiles > 0, i ? (i.excelFiles + ' file(s) · ' + i.excelRows + ' rows') : '', 'Drop .xlsx / .xls, or click.');
+      setSt('cl-st-mto-ext', e && e.excelFiles > 0, e ? (e.excelFiles + ' file(s) · ' + e.excelRows + ' rows') : '', 'Drop .xlsx / .xls, or click.');
+      setSt('cl-st-uniq-int', i && i.pdfFiles > 0, i ? (i.pdfFiles + ' file(s) · ' + i.pdfPages + ' pages') : '', 'Drop .pdf, or click.');
+      setSt('cl-st-uniq-ext', e && e.pdfFiles > 0, e ? (e.pdfFiles + ' file(s) · ' + e.pdfPages + ' pages') : '', 'Drop .pdf, or click.');
+
+      rowOrder = [];
+      if (!p) { log.innerHTML = '<tr><td colspan="7" class="cl-empty">Select a project to see its files.</td></tr>'; updateBulk(); return; }
+      const entries = []
+        .concat(((i && i.log) || []).map(x => Object.assign({ scope: 'Internal' }, x)))
+        .concat(((e && e.log) || []).map(x => Object.assign({ scope: 'External' }, x)));
+      entries.sort((a, b) => dkey(a.date) - dkey(b.date));
+      if (!entries.length) { log.innerHTML = '<tr><td colspan="7" class="cl-empty">No files added yet for this platform.</td></tr>'; updateBulk(); return; }
+
       // Group by date — the date sits once above the column labels for that day's files.
-      let html = '', lastDate = null;
-      d.log.forEach(e => {
-        if (e.date !== lastDate) {
-          html += '<tr class="cl-datehdr"><td colspan="3">' + esc(e.date) + '</td></tr>' +
-            '<tr class="cl-colhdr"><td>Type</td><td>File</td><td>Rows / Pages</td></tr>';
-          lastDate = e.date;
+      let html = '', last = null;
+      entries.forEach(en => {
+        if (en.date !== last) {
+          html += '<tr class="cl-datehdr"><td colspan="7">' + esc(en.date) + '</td></tr>' +
+            '<tr class="cl-colhdr"><td></td><td>Type</td><td>Scope</td><td>File</td><td>Rows / Pages</td><td></td><td></td></tr>';
+          last = en.date;
         }
-        html += '<tr><td class="ty ' + esc(e.type) + '">' + esc(e.type) +
-          '</td><td>' + esc(e.name) + '</td><td>' + e.count + '</td></tr>';
+        const idx = rowOrder.length; rowOrder.push(en.id);
+        html += '<tr data-id="' + esc(en.id) + '">' +
+          '<td class="cl-chk-td"><input type="checkbox" class="cl-chk" data-id="' + esc(en.id) + '" data-idx="' + idx + '"></td>' +
+          '<td class="ty ' + esc(en.type) + '">' + esc(en.type) + '</td><td class="sc">' + esc(en.scope) +
+          '</td><td>' + esc(en.name) + '</td><td>' + en.count + '</td>' +
+          '<td><button type="button" class="cl-row-btn cl-rep" data-id="' + esc(en.id) + '" title="Replace this file">Replace</button></td>' +
+          '<td><button type="button" class="cl-row-btn cl-del2" data-id="' + esc(en.id) + '" title="Delete this file">Delete</button></td>' +
+          '</tr>';
       });
       log.innerHTML = html;
+      updateBulk();
     }
 
-    async function upload(files) {
-      const cur = current();
-      if (!cur || !cur.p) { msg('Select a project first.', 'err'); return; }
-      if (!cur.c) { msg('Select a type (Internal / External) first.', 'err'); return; }
+    function updateBulk() {
+      const log = $('cl-log'); if (!log) return;
+      const n = log.querySelectorAll('.cl-chk:checked').length;
+      const bar = $('cl-bulk');
+      if (n > 0) { bar.style.display = 'flex'; $('cl-bulk-count').textContent = n + ' selected'; }
+      else bar.style.display = 'none';
+    }
+
+    async function deleteFiles(ids) {
+      const { p } = pdata();
+      if (!p || !ids.length) return;
+      if (!confirm('Delete ' + ids.length + ' file(s)?\n\nThe consolidated Excel/PDF will be rebuilt without them.')) return;
+      try {
+        const res = await fetch('/api/conslist/file/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ platform: p, ids }) });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok) { msg(d.error || 'Delete failed.', 'err'); return; }
+        lastIdx = null;
+        await loadConsList();
+        msg('Deleted ' + (d.deleted || ids.length) + ' file(s).', 'ok');
+      } catch (e) { msg('Delete failed: ' + e.message, 'err'); }
+    }
+
+    async function upload(files, category) {
+      const { p } = pdata();
+      if (!p) { msg('Select a project first.', 'err'); return; }
       if (!files || !files.length) return;
       const fd = new FormData();
-      fd.append('platform', cur.p); fd.append('category', cur.c);
+      fd.append('platform', p); fd.append('category', category);
       for (const f of files) fd.append('files', f, f.name);
-      msg('Adding ' + files.length + ' file(s)…', 'ok');
+      msg('Adding ' + files.length + ' file(s) to ' + category + '…', 'ok');
       try {
         const res = await fetch('/api/conslist/add', { method: 'POST', body: fd });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) { msg(data.error || data.detail || 'Add failed.', 'err'); return; }
-        let s = 'Added: ' + data.excelFiles + ' Excel (' + data.excelRows + ' rows), ' + data.pdfFiles + ' PDF (' + data.pdfPages + ' pages).';
+        let s = category + ': added ' + data.excelFiles + ' Excel (' + data.excelRows + ' rows), ' + data.pdfFiles + ' PDF (' + data.pdfPages + ' pages).';
         const bad = data.errors && data.errors.length;
         if (bad) s += ' — Skipped: ' + data.errors.join('; ');
         msg(s, bad ? 'err' : 'ok');
@@ -1254,39 +1344,99 @@
       } catch (e) { msg('Add failed: ' + e.message, 'err'); }
     }
 
-    function wireDrop(zoneId, inputId, accept) {
+    function wireDrop(zoneId, inputId, accept, category) {
       const zone = $(zoneId), input = $(inputId); if (!zone) return;
-      zone.addEventListener('click', () => input.click());
-      input.addEventListener('change', () => { upload(input.files); input.value = ''; });
+      zone.addEventListener('click', () => { if (!pdata().p) { msg('Select a project first.', 'err'); return; } msg(''); input.click(); });
+      input.addEventListener('change', () => { upload(input.files, category); input.value = ''; });
       ['dragenter','dragover'].forEach(ev => zone.addEventListener(ev, e => { e.preventDefault(); zone.classList.add('drag'); }));
       ['dragleave','drop'].forEach(ev => zone.addEventListener(ev, e => { e.preventDefault(); zone.classList.remove('drag'); }));
       zone.addEventListener('drop', e => {
         const files = [...(e.dataTransfer.files || [])].filter(f => accept.some(a => f.name.toLowerCase().endsWith(a)));
         if (!files.length) { msg('Please drop ' + accept.join(' / ') + ' files here.', 'err'); return; }
-        upload(files);
+        upload(files, category);
       });
     }
 
-    function download(type) {
-      const cur = current();
-      if (!cur || !cur.p) { msg('Select a project first.', 'err'); return; }
-      if (!cur.c) { msg('Select a type (Internal / External) first.', 'err'); return; }
-      const d = cur.d;
-      if (type === 'excel' && (!d || !d.hasExcel)) { msg('No Excel added yet for this platform.', 'err'); return; }
-      if (type === 'pdf' && (!d || !d.hasPdf)) { msg('No PDF added yet for this platform.', 'err'); return; }
-      window.location.href = '/api/conslist/download?platform=' + encodeURIComponent(cur.p) +
-        '&category=' + encodeURIComponent(cur.c) + '&type=' + type;
-      setTimeout(loadConsList, 1500); // revision bumped server-side
+    async function download(type, scope) {
+      const { p, i, e } = pdata();
+      if (!p) { msg('Select a project first.', 'err'); return; }
+      const hasI = type === 'excel' ? (i && i.hasExcel) : (i && i.hasPdf);
+      const hasE = type === 'excel' ? (e && e.hasExcel) : (e && e.hasPdf);
+      const ok = scope === 'Internal' ? hasI : scope === 'External' ? hasE : (hasI || hasE);
+      const label = type === 'excel' ? 'Excel' : 'PDF';
+      if (!ok) { msg('Nothing to download — no ' + scope + ' ' + label + ' has been uploaded for this project yet.', 'err'); return; }
+      try {
+        // fetch as a blob so a server-side error stays in-app (never navigates to a JSON page)
+        const res = await fetch('/api/conslist/download?platform=' + encodeURIComponent(p) + '&type=' + type + '&scope=' + scope);
+        if (!res.ok) { const d = await res.json().catch(() => ({})); msg(d.error || 'Download failed.', 'err'); return; }
+        const blob = await res.blob();
+        const cd = res.headers.get('Content-Disposition') || '';
+        let name = (cd.match(/filename\*=UTF-8''([^;]+)/) || cd.match(/filename="?([^";]+)"?/) || [])[1];
+        name = name ? decodeURIComponent(name) : (p + '_' + scope + '_' + label + (type === 'excel' ? '.xlsx' : '.pdf'));
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+        msg('Downloaded ' + name, 'ok');
+        setTimeout(loadConsList, 800); // revision bumped server-side
+      } catch (e) { msg('Download failed: ' + e.message, 'err'); }
     }
 
     function init() {
       if (!$('cl-project')) return;
-      $('cl-project').addEventListener('change', render);
-      $('cl-category').addEventListener('change', render);
-      wireDrop('cl-drop-excel', 'cl-file-excel', ['.xlsx', '.xls']);
-      wireDrop('cl-drop-pdf', 'cl-file-pdf', ['.pdf']);
-      $('cl-dl-excel').addEventListener('click', () => download('excel'));
-      $('cl-dl-pdf').addEventListener('click', () => download('pdf'));
+      $('cl-project').addEventListener('change', () => { msg(''); render(); }); // clear any stale "select a project" note
+      wireDrop('cl-drop-mto-int', 'cl-file-mto-int', ['.xlsx', '.xls'], 'Internal');
+      wireDrop('cl-drop-mto-ext', 'cl-file-mto-ext', ['.xlsx', '.xls'], 'External');
+      wireDrop('cl-drop-uniq-int', 'cl-file-uniq-int', ['.pdf'], 'Internal');
+      wireDrop('cl-drop-uniq-ext', 'cl-file-uniq-ext', ['.pdf'], 'External');
+      $('cl-dl-mto-int').addEventListener('click', () => download('excel', 'Internal'));
+      $('cl-dl-mto-ext').addEventListener('click', () => download('excel', 'External'));
+      $('cl-dl-mto-comb').addEventListener('click', () => download('excel', 'Combined'));
+      $('cl-dl-uniq-int').addEventListener('click', () => download('pdf', 'Internal'));
+      $('cl-dl-uniq-ext').addEventListener('click', () => download('pdf', 'External'));
+      $('cl-dl-uniq-comb').addEventListener('click', () => download('pdf', 'Combined'));
+
+      // Log table: checkbox (with shift-range) select, per-row Replace / Delete.
+      const logEl = $('cl-log');
+      logEl.addEventListener('click', e => {
+        const chk = e.target.closest('.cl-chk');
+        if (chk) {
+          const idx = +chk.dataset.idx;
+          if (e.shiftKey && lastIdx !== null) {
+            const a = Math.min(lastIdx, idx), b = Math.max(lastIdx, idx);
+            logEl.querySelectorAll('.cl-chk').forEach(box => { const bi = +box.dataset.idx; if (bi >= a && bi <= b) box.checked = chk.checked; });
+          }
+          lastIdx = idx;
+          updateBulk();
+          return;
+        }
+        const rep = e.target.closest('.cl-rep');
+        if (rep) { replaceTarget = rep.dataset.id; const inp = $('cl-replace-input'); inp.value = ''; inp.click(); return; }
+        const del = e.target.closest('.cl-del2');
+        if (del) { deleteFiles([del.dataset.id]); return; }
+      });
+
+      $('cl-bulk-del').addEventListener('click', () => {
+        const ids = [...logEl.querySelectorAll('.cl-chk:checked')].map(c => c.dataset.id);
+        if (!ids.length) { msg('Select files to delete first.', 'err'); return; }
+        deleteFiles(ids);
+      });
+      $('cl-bulk-clear').addEventListener('click', () => { logEl.querySelectorAll('.cl-chk:checked').forEach(c => c.checked = false); lastIdx = null; updateBulk(); });
+
+      $('cl-replace-input').addEventListener('change', async () => {
+        const inp = $('cl-replace-input'); const file = inp.files && inp.files[0];
+        const { p } = pdata();
+        if (!file || !replaceTarget || !p) { inp.value = ''; replaceTarget = null; return; }
+        const fd = new FormData(); fd.append('platform', p); fd.append('id', replaceTarget); fd.append('file', file, file.name);
+        msg('Replacing…', 'ok');
+        try {
+          const res = await fetch('/api/conslist/file/replace', { method: 'POST', body: fd });
+          const d = await res.json().catch(() => ({}));
+          if (!res.ok) { msg(d.error || 'Replace failed.', 'err'); return; }
+          await loadConsList();
+          msg('File replaced with ' + file.name + '.', 'ok');
+        } catch (e) { msg('Replace failed: ' + e.message, 'err'); }
+        finally { inp.value = ''; replaceTarget = null; }
+      });
       const projNote = (t, ok) => {
         const el = $('cl-proj-err'); if (!el) return;
         el.classList.toggle('ok', !!ok);
