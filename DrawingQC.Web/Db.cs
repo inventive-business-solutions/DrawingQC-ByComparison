@@ -151,11 +151,82 @@ CREATE TABLE IF NOT EXISTS mto_runs (
         return Convert.ToInt64(cmd.ExecuteScalar() ?? 0L);
     }
 
-    private static void Exec(NpgsqlConnection con, string sql, params (string name, object value)[] ps)
+    private static void Exec(NpgsqlConnection con, string sql, params (string name, object value)[] ps) => Exec(con, null, sql, ps);
+
+    private static void Exec(NpgsqlConnection con, NpgsqlTransaction? tx, string sql, params (string name, object value)[] ps)
     {
-        using var cmd = new NpgsqlCommand(sql, con);
+        using var cmd = new NpgsqlCommand(sql, con, tx);
         foreach (var (n, v) in ps) cmd.Parameters.AddWithValue(n, v ?? DBNull.Value);
         cmd.ExecuteNonQuery();
+    }
+
+    // ---------- accounts (used by Auth when Db.Enabled) ----------
+
+    private const string UserCols =
+        "id,username,email,name,role,password_hash,salt,avatar,security_question,security_answer_hash,security_answer_salt,created_at";
+
+    public static List<UserAccount> LoadUsers()
+    {
+        var list = new List<UserAccount>();
+        using var con = Open();
+        using var cmd = new NpgsqlCommand($"SELECT {UserCols} FROM users ORDER BY created_at", con);
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+            list.Add(new UserAccount
+            {
+                Id = r.GetString(0),
+                Username = r.GetString(1),
+                Email = r.GetString(2),
+                Name = r.GetString(3),
+                Role = r.GetString(4),
+                PasswordHash = r.GetString(5),
+                Salt = r.GetString(6),
+                Avatar = r.IsDBNull(7) ? null : r.GetString(7),
+                SecurityQuestion = r.IsDBNull(8) ? null : r.GetString(8),
+                SecurityAnswerHash = r.IsDBNull(9) ? null : r.GetString(9),
+                SecurityAnswerSalt = r.IsDBNull(10) ? null : r.GetString(10),
+                CreatedAt = r.GetDateTime(11),
+            });
+        return list;
+    }
+
+    // Make the users table exactly match the given list (upsert present rows, delete the rest) —
+    // mirrors the file store's whole-list Save so Auth's existing logic is unchanged.
+    public static void SaveUsers(List<UserAccount> users)
+    {
+        using var con = Open();
+        using var tx = con.BeginTransaction();
+        var ids = users.Select(u => u.Id).ToArray();
+        Exec(con, tx, "DELETE FROM users WHERE NOT (id = ANY(@ids))", ("ids", ids));
+        foreach (var u in users)
+            Exec(con, tx, @"INSERT INTO users(id,username,email,name,role,password_hash,salt,avatar,security_question,security_answer_hash,security_answer_salt,created_at)
+                            VALUES(@id,@un,@em,@nm,@ro,@ph,@sa,@av,@sq,@sah,@sas,@ca)
+                            ON CONFLICT (id) DO UPDATE SET
+                              username=excluded.username, email=excluded.email, name=excluded.name, role=excluded.role,
+                              password_hash=excluded.password_hash, salt=excluded.salt, avatar=excluded.avatar,
+                              security_question=excluded.security_question, security_answer_hash=excluded.security_answer_hash,
+                              security_answer_salt=excluded.security_answer_salt",
+                ("id", u.Id), ("un", u.Username), ("em", u.Email), ("nm", u.Name), ("ro", u.Role),
+                ("ph", u.PasswordHash), ("sa", u.Salt), ("av", (object?)u.Avatar ?? DBNull.Value),
+                ("sq", (object?)u.SecurityQuestion ?? DBNull.Value), ("sah", (object?)u.SecurityAnswerHash ?? DBNull.Value),
+                ("sas", (object?)u.SecurityAnswerSalt ?? DBNull.Value), ("ca", Utc(u.CreatedAt)));
+        tx.Commit();
+    }
+
+    // ---------- key/value settings ----------
+
+    public static string? GetSetting(string key)
+    {
+        using var con = Open();
+        using var cmd = new NpgsqlCommand("SELECT value FROM settings WHERE key=@k", con);
+        cmd.Parameters.AddWithValue("k", key);
+        return cmd.ExecuteScalar() as string;
+    }
+
+    public static void SetSetting(string key, string value)
+    {
+        using var con = Open();
+        Exec(con, "INSERT INTO settings(key,value) VALUES(@k,@v) ON CONFLICT (key) DO UPDATE SET value=excluded.value", ("k", key), ("v", value));
     }
 
     // One-time migration of the existing on-disk JSON into the database (only when the DB is empty).

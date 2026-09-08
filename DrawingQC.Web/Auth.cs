@@ -68,6 +68,7 @@ public static class Auth
 
     private static List<UserAccount> Load()
     {
+        if (Db.Enabled) return Db.LoadUsers();
         lock (Gate)
         {
             if (!File.Exists(UsersFile)) return new();
@@ -78,6 +79,7 @@ public static class Auth
 
     private static void Save(List<UserAccount> users)
     {
+        if (Db.Enabled) { Db.SaveUsers(users); return; }
         lock (Gate)
         {
             Directory.CreateDirectory(DataDir);
@@ -259,6 +261,11 @@ public static class Auth
 
     public static AuthSettings GetSettings()
     {
+        if (Db.Enabled)
+        {
+            var v = Db.GetSetting("RegistrationOpen");
+            return new AuthSettings { RegistrationOpen = v == null || v == "true" };
+        }
         lock (Gate)
         {
             if (!File.Exists(SettingsFile)) return new();
@@ -272,7 +279,11 @@ public static class Auth
         lock (Gate) { Directory.CreateDirectory(DataDir); File.WriteAllText(SettingsFile, JsonSerializer.Serialize(s, JsonOpts)); }
     }
 
-    public static void SetRegistrationOpen(bool open) { var s = GetSettings(); s.RegistrationOpen = open; SaveSettings(s); }
+    public static void SetRegistrationOpen(bool open)
+    {
+        if (Db.Enabled) { Db.SetSetting("RegistrationOpen", open ? "true" : "false"); return; }
+        var s = GetSettings(); s.RegistrationOpen = open; SaveSettings(s);
+    }
 
     // ---------- admin / user management ----------
 
