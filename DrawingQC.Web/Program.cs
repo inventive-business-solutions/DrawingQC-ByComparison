@@ -14,6 +14,10 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o =>
 
 var app = builder.Build();
 
+// Optional PostgreSQL store (team/shared deployments). No-op unless SUPPORTAUTOMATION_DB is set;
+// on first run with a DB configured it creates the schema and imports existing JSON data.
+DrawingQC.Web.Db.Init();
+
 // Locally: serve on http://localhost:5080 (3000 is used by another project).
 // When a hosting platform (e.g. Render) provides a PORT, bind to that instead.
 app.Urls.Clear();
