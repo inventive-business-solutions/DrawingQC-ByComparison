@@ -1,0 +1,1849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Drawing QC</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234f46e5'/%3E%3Cpath d='M9 16.5l4.5 4.5L23 11' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+  <style>
+    :root {
+      --accent: #4f46e5; --accent-dark: #4338ca;
+      --grad: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+      --grad-hover: linear-gradient(135deg, #1d4ed8 0%, #6d28d9 100%);
+      --panel: #ffffff; --border: #e4e8ef;
+      --ink: #131a2b; --muted: #5c6a85; --faint: #93a0b8;
+      --sidebar: #131a2b; --sidebar-2: #202b46; --sidebar-text: #cdd4e2; --sidebar-muted: #7c869c;
+      --match-bg: #dcefe0; --match-fg: #1b6b3a;
+      --unmatch-bg: #fadcdf; --unmatch-fg: #9c0006;
+      --dup-bg: #fbeec2; --dup-fg: #8a5a00;
+      --sidebar-w: 252px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; color: var(--ink); min-height: 100vh;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background:
+        radial-gradient(700px 380px at 78% -8%, #e9e3fb 0%, transparent 60%),
+        radial-gradient(600px 340px at 105% 40%, #dce7fd 0%, transparent 55%),
+        #eef0f4;
+    }
+
+    /* ---------- Sidebar ---------- */
+    .side {
+      position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+      background: linear-gradient(170deg, #1b1e3a 0%, #241a44 55%, #2b1840 100%);
+      color: var(--sidebar-text);
+      display: flex; flex-direction: column; padding: 22px 18px; z-index: 10;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 700; color: #fff; padding: 4px 6px 24px; white-space: nowrap; }
+    /* Company logo pinned to the top-right corner on every page. Dark chip so the logo's
+       white "Inventive" text stays legible against the light content area. */
+    .corner-logo { position: absolute; top: 18px; right: 26px; z-index: 20;
+      background: linear-gradient(170deg,#1b1e3a 0%,#241a44 55%,#2b1840 100%);
+      padding: 8px 14px; border-radius: 12px; box-shadow: 0 8px 20px rgba(20,16,48,.18); }
+    .corner-logo img { display: block; max-width: 150px; max-height: 46px; object-fit: contain; }
+    .brand .mark {
+      width: 32px; height: 32px; border-radius: 9px; background: var(--grad);
+      display: grid; place-items: center; color: #fff; flex-shrink: 0;
+      box-shadow: 0 6px 16px rgba(99,60,220,.45);
+    }
+    .nav { display: flex; flex-direction: column; gap: 3px; }
+    .nav-item {
+      display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 8px;
+      color: var(--sidebar-text); font-size: 14px; font-weight: 500; text-decoration: none; cursor: pointer;
+    }
+    .nav-item:hover { background: var(--sidebar-2); }
+    .nav-item.active { background: var(--grad); color: #fff; box-shadow: 0 8px 20px rgba(99,60,220,.4); }
+    .nav-item svg { width: 17px; height: 17px; flex-shrink: 0; }
+
+    .side-section { margin-top: 26px; padding: 0 6px; }
+    .side-title { font-size: 11px; letter-spacing: .11em; text-transform: uppercase; color: var(--sidebar-muted); margin-bottom: 12px; }
+
+    /* Client accordion */
+    .clients { display: flex; flex-direction: column; gap: 8px; }
+    .client { display: flex; flex-direction: column; }
+    .client-btn {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      width: 100%; text-align: left;
+      background: rgba(255,255,255,.06); color: var(--sidebar-text);
+      border: 1px solid rgba(255,255,255,.12); border-radius: 9px;
+      padding: 10px 14px; font-size: 13px; font-weight: 600; letter-spacing: .02em;
+      cursor: pointer; box-shadow: none; transition: background .12s ease, border-color .12s ease;
+    }
+    .client-btn:hover { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.28); }
+    .client-btn.active { background: var(--grad); color: #fff; border-color: transparent; box-shadow: 0 8px 18px rgba(99,60,220,.4); }
+    .client-btn .chev { width: 15px; height: 15px; opacity: .7; transition: transform .18s ease; flex-shrink: 0; }
+    .client.open .client-btn .chev { transform: rotate(180deg); }
+
+    /* Tools under a client */
+    .client .tools { display: none; flex-direction: column; gap: 5px; margin: 6px 0 4px; padding-left: 12px; border-left: 1.5px solid rgba(255,255,255,.14); margin-left: 6px; }
+    .client.open .tools { display: flex; }
+    .tool-btn {
+      width: 100%; text-align: left;
+      background: transparent; color: var(--sidebar-text);
+      border: 1px solid transparent; border-radius: 8px;
+      padding: 8px 12px; font-size: 12.5px; font-weight: 500;
+      cursor: pointer; box-shadow: none; transition: background .12s ease, color .12s ease;
+    }
+    .tool-btn:hover { background: rgba(255,255,255,.10); }
+    .tool-btn.active { background: rgba(124,58,237,.28); color: #fff; border-color: rgba(124,58,237,.55); font-weight: 600; }
+    .tools-empty { font-size: 12px; color: var(--sidebar-muted); font-style: italic; padding: 6px 12px; }
+    .legend-row { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--sidebar-text); margin-bottom: 11px; line-height: 1.35; }
+    .legend-row .swatch { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; margin-top: 1px; }
+    .legend-row .swatch.m { background: var(--match-fg); }
+    .legend-row .swatch.u { background: var(--unmatch-fg); }
+    .legend-row .swatch.d { background: var(--dup-fg); }
+    .legend-row b { color: #fff; font-weight: 600; }
+
+    .side-foot { margin-top: auto; padding: 14px 6px 2px; font-size: 11.5px; color: var(--sidebar-muted); line-height: 1.5; border-top: 1px solid var(--sidebar-2); }
+
+    /* ---------- Main ---------- */
+    .main { margin-left: var(--sidebar-w); padding: 30px 40px 60px; position: relative; }
+    .mhead { margin-bottom: 24px; }
+    .mhead h1 {
+      margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -.02em;
+      background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; width: fit-content;
+    }
+    .mhead .sub { margin: 7px 0 0; color: var(--muted); font-size: 14.5px; }
+    .client-tag {
+      display: inline-block; background: #ede9fe; color: #6d28d9;
+      font-size: 11px; font-weight: 700; letter-spacing: .05em;
+      padding: 3px 9px; border-radius: 999px; margin-right: 8px; vertical-align: 1px;
+    }
+
+    .view.hidden { display: none; }
+
+    /* Client / tool tab bar */
+    .toolbar { display: flex; flex-direction: column; gap: 14px; margin-bottom: 26px; }
+    .tabs-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .tool-tabs { min-height: 34px; }
+    .ctab {
+      background: var(--panel); color: var(--muted);
+      border: 1px solid var(--border); border-radius: 11px;
+      padding: 11px 22px; font-size: 14px; font-weight: 700; letter-spacing: .01em;
+      cursor: pointer; box-shadow: 0 2px 6px rgba(16,24,40,.05);
+      transition: border-color .14s ease, color .14s ease, background .14s ease;
+    }
+    .ctab:hover:not(.active) { border-color: var(--accent); color: var(--ink); transform: none; box-shadow: 0 2px 6px rgba(16,24,40,.05); filter: none; }
+    .ctab.active { background: var(--grad); color: #fff; border-color: transparent; box-shadow: 0 8px 18px rgba(99,60,220,.3); }
+    .ctab.active:hover { transform: none; filter: none; }
+
+    .ttab {
+      background: transparent; color: var(--muted);
+      border: 1px solid var(--border); border-radius: 999px;
+      padding: 8px 17px; font-size: 13px; font-weight: 600;
+      cursor: pointer; box-shadow: none;
+      transition: border-color .12s ease, color .12s ease, background .12s ease;
+    }
+    .ttab:hover:not(.active) { border-color: var(--accent); color: var(--ink); transform: none; box-shadow: none; filter: none; }
+    .ttab.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+    .ttab.active:hover { transform: none; filter: none; box-shadow: none; }
+    .no-tools { color: var(--faint); font-size: 13px; font-style: italic; }
+
+    /* Placeholder tool view */
+    .placeholder { text-align: center; padding: 48px 30px; }
+    .placeholder .ph-ic { width: 60px; height: 60px; border-radius: 16px; background: #ede9fe; color: var(--accent); display: inline-grid; place-items: center; margin-bottom: 18px; }
+    .placeholder .ph-ic svg { width: 30px; height: 30px; }
+    .placeholder h2 { margin: 0 0 8px; font-size: 19px; font-weight: 700; }
+    .placeholder p { margin: 0 auto; max-width: 460px; color: var(--muted); font-size: 14.5px; line-height: 1.6; }
+
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 24px; box-shadow: 0 6px 22px rgba(16,24,40,.06); }
+    .panel + .panel, .stats + .panel, .panel + .stats { margin-top: 20px; }
+
+    /* Stat cards */
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+    .stat {
+      position: relative; background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+      padding: 18px 20px; box-shadow: 0 4px 16px rgba(16,24,40,.05);
+      transition: transform .16s ease, box-shadow .16s ease;
+    }
+    .stat:hover { transform: translateY(-3px); box-shadow: 0 12px 26px rgba(16,24,40,.10); }
+    .stat .chip {
+      width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; margin-bottom: 12px;
+    }
+    .stat .chip svg { width: 18px; height: 18px; }
+    .stat .n { font-size: 32px; font-weight: 800; letter-spacing: -.02em; line-height: 1; }
+    .stat .l { color: var(--muted); font-size: 13px; margin-top: 8px; }
+    .stat.total .chip { background: #e6ebfe; color: var(--accent); }
+    .stat.matched .chip { background: var(--match-bg); color: var(--match-fg); }
+    .stat.unmatched .chip { background: var(--unmatch-bg); color: var(--unmatch-fg); }
+    .stat.duplicate .chip { background: var(--dup-bg); color: var(--dup-fg); }
+    .stat.matched .n { color: var(--match-fg); }
+    .stat.unmatched .n { color: var(--unmatch-fg); }
+    .stat.duplicate .n { color: var(--dup-fg); }
+
+    /* Upload — compact single row */
+    .drop {
+      display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 16px;
+      border: 2px dashed #cdd5e2; border-radius: 10px; background: #f7f9fc;
+      padding: 18px 24px; cursor: pointer; transition: .15s;
+    }
+    .drop:hover, .drop.drag { border-color: var(--accent); background: #f0f0fe; }
+    .drop .ic { width: 44px; height: 44px; border-radius: 12px; background: var(--grad); color: #fff; display: grid; place-items: center; box-shadow: 0 8px 18px rgba(99,60,220,.32); transition: transform .16s ease; flex-shrink: 0; }
+    .drop:hover .ic, .drop.drag .ic { transform: scale(1.06); }
+    .drop .ic svg { width: 21px; height: 21px; }
+    .drop-text { text-align: left; }
+    .drop-main { font-size: 15px; color: var(--ink); }
+    .drop-main strong { color: var(--accent); font-weight: 700; }
+    .drop small { display: block; margin-top: 2px; font-size: 12px; color: var(--faint); }
+    #file { display: none; }
+
+    .bar { display: flex; align-items: center; gap: 16px; margin-top: 18px; flex-wrap: wrap; }
+    button {
+      background: var(--grad); color: #fff; border: 0; border-radius: 10px;
+      padding: 12px 26px; font-size: 14.5px; font-weight: 600; cursor: pointer;
+      transition: transform .12s ease, box-shadow .12s ease, filter .12s ease;
+      box-shadow: 0 8px 20px rgba(99,60,220,.32);
+    }
+    button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 12px 26px rgba(99,60,220,.42); filter: brightness(1.05); }
+    button:disabled { background: #c4cbd8; color: #eef1f5; cursor: not-allowed; box-shadow: none; }
+    button.secondary { background: var(--ink); box-shadow: 0 6px 16px rgba(19,26,43,.25); }
+    button.secondary:hover:not(:disabled) { box-shadow: 0 10px 22px rgba(19,26,43,.32); }
+    .fname { color: var(--muted); font-size: 14px; }
+
+    /* Results */
+    .results-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; flex-wrap: wrap; }
+    .results-head h2 { margin: 0; font-size: 18px; font-weight: 700; }
+    .results-head .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    button.acad { background: linear-gradient(135deg, #e11d48 0%, #b91c1c 100%); box-shadow: 0 8px 20px rgba(190,24,40,.30); }
+    button.acad:hover:not(:disabled) { box-shadow: 0 12px 26px rgba(190,24,40,.42); }
+    .sync-msg { margin: -4px 0 16px; padding: 11px 15px; border-radius: 9px; font-size: 13.5px; }
+    .sync-msg.ok { background: var(--match-bg); color: var(--match-fg); border: 1px solid #9fd3ac; }
+    .sync-msg.err { background: var(--unmatch-bg); color: var(--unmatch-fg); border: 1px solid #e6a3a8; }
+
+    .filters { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+    .filters button {
+      background: #f1f4f9; color: var(--muted); border: 1px solid var(--border);
+      padding: 7px 15px; font-size: 13px; font-weight: 500; border-radius: 8px;
+    }
+    .filters button:hover:not(.active) { border-color: var(--accent); color: var(--ink); }
+    .filters button.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    th { background: #f4f6fa; color: var(--muted); text-align: left; padding: 11px 14px; font-size: 12px; letter-spacing: .03em; text-transform: uppercase; font-weight: 600; border-bottom: 1px solid var(--border); }
+    td { padding: 10px 14px; border-top: 1px solid var(--border); }
+    tr.matched td { background: var(--match-bg); color: var(--match-fg); }
+    tr.unmatched td { background: var(--unmatch-bg); color: var(--unmatch-fg); }
+    tr.duplicate td { background: var(--dup-bg); color: var(--dup-fg); }
+    .status-pill { font-weight: 700; }
+
+    .msg { margin-top: 16px; padding: 12px 16px; border-radius: 9px; font-size: 14px; }
+    .msg.err { background: var(--unmatch-bg); color: var(--unmatch-fg); border: 1px solid #e6a3a8; }
+    .spinner { display: inline-block; width: 15px; height: 15px; border: 2px solid rgba(255,255,255,.5); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -2px; margin-right: 8px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .hidden { display: none; }
+
+    @media (max-width: 820px) {
+      :root { --sidebar-w: 0px; }
+      .side {
+        position: static; width: 100%; flex-direction: row; align-items: center;
+        flex-wrap: wrap; gap: 8px 18px; padding: 14px 20px;
+      }
+      .brand { padding: 0; }
+      .nav { flex-direction: row; }
+      .side-section, .side-foot { display: none; }
+      .main { margin-left: 0; padding: 24px 20px 48px; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <aside class="side">
+    <div class="brand">
+      <span class="mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V15z"/></svg>
+      </span>
+      Support Automation
+    </div>
+
+    <nav class="nav">
+      <a class="nav-item active" id="navWorkspace" onclick="showHome()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/></svg>
+        Workspace
+      </a>
+      <a class="nav-item" id="adminNav" onclick="openAdmin()" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        User management
+      </a>
+    </nav>
+
+    <div class="side-section" id="statusKey">
+      <div class="side-title">Status key</div>
+      <div class="legend-row"><span class="swatch m"></span><span><b>Matched</b> — file name found on the sheet</span></div>
+      <div class="legend-row"><span class="swatch u"></span><span><b>Unmatched</b> — no drawing number match</span></div>
+      <div class="legend-row"><span class="swatch d"></span><span><b>Duplicate</b> — number seen on 2+ sheets</span></div>
+    </div>
+
+    <div class="side-bottom">
+      <div class="side-user" id="sideUser" onclick="openProfile()" style="display:none">
+        <span class="su-avatar" id="suAvatar"></span>
+        <span class="su-meta"><span class="su-name" id="suName">—</span><span class="su-role" id="suRole"></span></span>
+      </div>
+      <div class="side-foot">PDF parsing runs server-side.<br>PdfPig + ClosedXML · exports .xlsx</div>
+    </div>
+  </aside>
+
+  <main class="main">
+   <div class="corner-logo" id="cornerLogo">
+     <img src="/logo.png" alt="Company logo" onerror="this.parentElement.style.display='none'">
+   </div>
+   <div class="toolbar" id="toolbar">
+     <div class="tabs-row client-tabs" id="clientTabs">
+       <button type="button" class="ctab" data-client="S2NERGY">S2NERGY</button>
+       <button type="button" class="ctab" data-client="QATAR">QATAR</button>
+       <button type="button" class="ctab" data-client="UAE">UAE</button>
+       <button type="button" class="ctab" data-client="KBR">KBR</button>
+     </div>
+     <div class="tabs-row tool-tabs" id="toolTabs"></div>
+   </div>
+
+   <div id="view-home" class="view">
+     <style>
+       #view-home .home-wrap { display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; min-height:64vh; gap:14px; padding:20px; }
+       #view-home .home-logo-card { background:linear-gradient(170deg,#1b1e3a 0%,#241a44 55%,#2b1840 100%); padding:16px 24px; border-radius:16px; box-shadow:0 12px 28px rgba(20,16,48,.20); margin-bottom:8px; }
+       #view-home .home-logo { display:block; max-width:220px; max-height:110px; object-fit:contain; }
+       #view-home .home-badge { width:74px; height:74px; border-radius:18px; align-items:center; justify-content:center; background:linear-gradient(135deg,#6366f1,#4f46e5); color:#fff; box-shadow:0 10px 24px rgba(79,70,229,.28); margin-bottom:6px; }
+       #view-home .home-badge svg { width:38px; height:38px; }
+       #view-home .home-title { font-size:30px; font-weight:800; color:var(--ink); margin:0; letter-spacing:-.5px; }
+       #view-home .home-sub { color:var(--muted); font-size:15px; margin:0; max-width:480px; line-height:1.55; }
+       #view-home .home-hint { margin-top:8px; font-size:13px; color:var(--faint); }
+     </style>
+     <div class="home-wrap">
+       <!-- Company logo: drop a file named "logo.png" into wwwroot to show it here. -->
+       <div class="home-logo-card" id="homeLogoCard">
+         <img id="companyLogo" class="home-logo" src="/logo.png" alt="Company logo" onerror="document.getElementById('homeLogoCard').style.display='none'; document.getElementById('homeBadge').style.display='flex';">
+       </div>
+       <span class="home-badge" id="homeBadge" style="display:none">
+         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h10l6 6v10a0 0 0 0 1 0 0H4z"/><path d="M14 4v6h6"/><path d="M8 14h8M8 17h5"/></svg>
+       </span>
+       <h1 class="home-title">Welcome to Support Automation</h1>
+       <p class="home-sub">Select a client above — S2NERGY, QATAR, UAE or KBR — to open its tools.</p>
+       <p class="home-hint">Your workspace is ready.</p>
+     </div>
+   </div><!-- /view-home -->
+
+   <div id="view-qc" class="view hidden">
+    <div class="mhead">
+      <h1>QC Check</h1>
+      <p class="sub"><span class="client-tag" id="qc-client">S2NERGY</span> Upload a .zip of drawing PDFs and generate the QC register.</p>
+    </div>
+
+    <section class="stats">
+      <div class="stat total">
+        <div class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h10l6 6v10H4z"/><path d="M14 4v6h6"/></svg></div>
+        <div class="n" id="c-total">0</div><div class="l">Total PDFs</div>
+      </div>
+      <div class="stat matched">
+        <div class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
+        <div class="n" id="c-matched">0</div><div class="l">Matched</div>
+      </div>
+      <div class="stat unmatched">
+        <div class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg></div>
+        <div class="n" id="c-unmatched">0</div><div class="l">Unmatched</div>
+      </div>
+      <div class="stat duplicate">
+        <div class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M4 16V6a2 2 0 0 1 2-2h10"/></svg></div>
+        <div class="n" id="c-duplicate">0</div><div class="l">Duplicate</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <label class="drop" id="drop">
+        <span class="ic">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="M8 8l4-4 4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        </span>
+        <input type="file" id="file" accept=".zip" />
+        <div class="drop-text">
+          <div class="drop-main"><strong>Drop a .zip here</strong> or click to choose</div>
+          <small>Only .zip archives of PDF drawings are supported.</small>
+        </div>
+      </label>
+
+      <div class="bar">
+        <button id="run" disabled>Run QC</button>
+        <span class="fname" id="fname">No file selected</span>
+      </div>
+
+      <div id="error" class="msg err hidden"></div>
+    </section>
+
+    <section id="results" class="panel hidden">
+      <div class="results-head">
+        <h2>Results</h2>
+        <div class="actions">
+          <button id="sync" class="acad">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;vertical-align:-3px;margin-right:7px"><path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-6.7-3M3 12a9 9 0 0 1 9-9 9 9 0 0 1 6.7 3"/><path d="M21 3v6h-6M3 21v-6h6"/></svg>
+            Sync to AutoCAD
+          </button>
+          <button id="download" class="secondary">Download Excel report</button>
+        </div>
+      </div>
+      <div id="syncMsg" class="sync-msg hidden"></div>
+
+      <div class="filters" id="filters">
+        <button data-f="all" class="active">All</button>
+        <button data-f="Matched">Matched</button>
+        <button data-f="Unmatched">Unmatched</button>
+        <button data-f="Duplicate">Duplicate</button>
+      </div>
+
+      <table>
+        <thead>
+          <tr><th>Sr.No</th><th>Support PDF</th><th>1st drawing name</th><th>2nd drawing name</th><th>Status</th></tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </section>
+   </div><!-- /view-qc -->
+
+   <div id="view-mto" class="view hidden">
+     <div class="mhead">
+       <h1>MTO Check</h1>
+       <p class="sub"><span class="client-tag">S2NERGY</span> Material Take-Off verification.</p>
+     </div>
+     <section class="panel placeholder">
+       <span class="ph-ic">
+         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg>
+       </span>
+       <h2>MTO Check is set up</h2>
+       <p>This tool is wired into the S2NERGY workspace and ready for its logic. Tell me what an MTO Check should do — the inputs it takes and the output you expect — and I'll build it out.</p>
+     </section>
+   </div><!-- /view-mto -->
+
+   <div id="view-conslist" class="view hidden">
+     <style>
+       #view-conslist .cl-sub { color:var(--muted); margin:-4px 0 18px; }
+       #view-conslist .cl-bar { display:flex; flex-wrap:wrap; gap:14px; align-items:flex-end; margin-bottom:18px; }
+       #view-conslist .cl-field { display:flex; flex-direction:column; gap:6px; }
+       #view-conslist .cl-field label { font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+       #view-conslist select, #view-conslist .cl-add input {
+         border:1px solid var(--border); border-radius:8px; padding:9px 11px; font:inherit; font-size:14px; color:var(--ink); background:#fff; min-width:180px; }
+       #view-conslist select:focus, #view-conslist .cl-add input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(79,70,229,.14); }
+       #view-conslist .cl-add { display:flex; gap:8px; align-items:center; }
+       #view-conslist .cl-inline-err { color:#b91c1c; font-size:12.5px; margin-top:6px; }
+       #view-conslist .cl-inline-err.ok { color:#166534; }
+       #view-conslist .cl-btn { background:var(--grad); color:#fff; border:none; border-radius:9px; padding:9px 16px; font-size:14px; font-weight:600; cursor:pointer; white-space:nowrap; }
+       #view-conslist .cl-btn.ghost { background:#fff; color:var(--ink); border:1px solid var(--border); }
+       #view-conslist .cl-btn.cl-del { color:#b91c1c; border-color:#f3c2c2; }
+       #view-conslist .cl-btn.cl-del:hover { background:#fef2f2; }
+       #view-conslist .cl-btn:disabled { opacity:.55; cursor:default; }
+       #view-conslist .cl-drops { display:flex; gap:16px; flex-wrap:wrap; }
+       #view-conslist .cl-drop { flex:1; min-width:280px; border:2px dashed var(--border); border-radius:14px; padding:22px; text-align:center; background:#fbfbfd; transition:.15s; cursor:pointer; }
+       #view-conslist .cl-drop:hover, #view-conslist .cl-drop.drag { border-color:var(--accent); background:#f4f3ff; }
+       #view-conslist .cl-drop h3 { margin:8px 0 4px; font-size:15px; color:var(--ink); }
+       #view-conslist .cl-drop .cl-tag { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--accent); }
+       #view-conslist .cl-drop p { color:var(--faint); font-size:12.5px; margin:4px 0 0; }
+       #view-conslist .cl-drop .cl-ic { color:var(--accent); }
+       #view-conslist .cl-cards { display:flex; gap:14px; flex-wrap:wrap; margin:20px 0; }
+       #view-conslist .cl-card { flex:1; min-width:150px; background:#fff; border:1px solid var(--border); border-radius:12px; padding:14px 16px; }
+       #view-conslist .cl-num { font-size:24px; font-weight:800; color:var(--ink); }
+       #view-conslist .cl-cap { font-size:12.5px; color:var(--muted); margin-top:3px; }
+       #view-conslist .cl-actions { display:flex; gap:12px; flex-wrap:wrap; margin:6px 0 18px; }
+       #view-conslist .cl-sections { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:18px; }
+       #view-conslist .cl-sec { background:#fff; border:1px solid var(--border); border-radius:16px; padding:16px 16px 14px; }
+       #view-conslist .cl-sec-head { display:flex; align-items:baseline; gap:10px; margin-bottom:12px; }
+       #view-conslist .cl-sec-title { font-size:16px; font-weight:800; color:var(--accent); letter-spacing:.02em; }
+       #view-conslist .cl-sec-note { font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--faint); font-weight:600; }
+       #view-conslist .cl-sub-drops { display:flex; gap:12px; }
+       #view-conslist .cl-sub-drops .cl-drop { flex:1; min-width:0; padding:16px 12px; }
+       #view-conslist .cl-drop .cl-st { color:var(--faint); font-size:12px; margin:6px 0 0; }
+       #view-conslist .cl-drop .cl-st.has { color:#166534; font-weight:600; }
+       #view-conslist .cl-dl-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:14px; }
+       #view-conslist .cl-dl-lbl { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin-right:2px; }
+       #view-conslist .cl-dl-row .cl-btn { padding:7px 14px; font-size:13px; }
+       #view-conslist td.sc { color:var(--muted); font-weight:600; }
+       #view-conslist .cl-chk { width:16px; height:16px; cursor:pointer; }
+       #view-conslist td.cl-chk-td { padding-right:10px; }
+       #view-conslist .cl-row-btn { border:1px solid var(--border); background:#fff; color:var(--ink); border-radius:7px; padding:4px 10px; font-size:12px; cursor:pointer; }
+       #view-conslist .cl-row-btn:hover { background:#f4f3ff; border-color:var(--accent); }
+       #view-conslist .cl-row-btn.cl-del2 { color:#b91c1c; border-color:#f3c2c2; }
+       #view-conslist .cl-row-btn.cl-del2:hover { background:#fef2f2; }
+       #view-conslist .cl-bulk { display:flex; align-items:center; gap:12px; margin:12px 0 0; padding:10px 14px; background:#eef2ff; border:1px solid #d5dcfb; border-radius:10px; }
+       #view-conslist .cl-bulk #cl-bulk-count { font-weight:600; color:var(--ink); font-size:13.5px; }
+       #view-conslist .cl-bulk .cl-btn { padding:7px 14px; font-size:13px; }
+       @media (max-width:1100px){ #view-conslist .cl-sections { grid-template-columns:1fr; } }
+       #view-conslist .cl-results { background:#fff; border:1px solid var(--border); border-radius:14px; padding:16px; overflow-x:auto; }
+       #view-conslist table { width:auto; border-collapse:collapse; font-size:13.5px; }
+       #view-conslist td { padding:8px 26px 8px 10px; border-bottom:1px solid var(--border); color:var(--ink); white-space:nowrap; }
+       #view-conslist td.ty { font-weight:700; }
+       #view-conslist td.ty.Excel { color:#166534; }
+       #view-conslist td.ty.PDF { color:#b45309; }
+       #view-conslist tr.cl-datehdr td { background:#eef2f8; font-weight:700; color:var(--ink); letter-spacing:.02em; }
+       #view-conslist tr.cl-colhdr td { font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); font-weight:600; border-bottom:1px solid var(--border); }
+       #view-conslist .cl-empty { color:var(--faint); text-align:center; padding:22px; font-size:14px; }
+       #view-conslist .cl-msg { margin-top:12px; padding:10px 12px; border-radius:8px; font-size:14px; }
+       #view-conslist .cl-msg.ok { background:#ecfdf5; color:#166534; }
+       #view-conslist .cl-msg.err { background:#fef2f2; color:#b91c1c; }
+     </style>
+
+     <div class="mhead">
+       <h1>ConsList</h1>
+       <p class="cl-sub"><span class="client-tag">S2NERGY</span> Per platform, add MTO Excel and Unique PDF files for Internal and External. Each stream is merged datewise; download Internal, External, or Combined (Rev 1, 2, 3…N).</p>
+     </div>
+
+     <div class="cl-bar">
+       <div class="cl-field">
+         <label for="cl-project">Project</label>
+         <div class="cl-add">
+           <select id="cl-project"></select>
+           <button type="button" class="cl-btn ghost cl-del" id="cl-delproj" title="Remove this project and its data">Delete</button>
+         </div>
+       </div>
+       <div class="cl-field">
+         <label>Add a new project</label>
+         <div class="cl-add">
+           <input type="text" id="cl-newproj" placeholder="e.g. RP7N" autocomplete="off">
+           <button type="button" class="cl-btn ghost" id="cl-addproj">Add project</button>
+         </div>
+         <div id="cl-proj-err" class="cl-inline-err" style="display:none;"></div>
+       </div>
+     </div>
+
+     <div class="cl-sections">
+       <!-- MTO: Excel, Internal + External -->
+       <section class="cl-sec">
+         <div class="cl-sec-head"><span class="cl-sec-title">MTO</span><span class="cl-sec-note">Excel · typical supports</span></div>
+         <div class="cl-sub-drops">
+           <div class="cl-drop" id="cl-drop-mto-int" data-cat="Internal">
+             <span class="cl-tag">Internal</span>
+             <h3>Add Excel</h3>
+             <p class="cl-st" id="cl-st-mto-int">Drop .xlsx / .xls, or click.</p>
+             <input type="file" id="cl-file-mto-int" accept=".xlsx,.xls" multiple hidden>
+           </div>
+           <div class="cl-drop" id="cl-drop-mto-ext" data-cat="External">
+             <span class="cl-tag">External</span>
+             <h3>Add Excel</h3>
+             <p class="cl-st" id="cl-st-mto-ext">Drop .xlsx / .xls, or click.</p>
+             <input type="file" id="cl-file-mto-ext" accept=".xlsx,.xls" multiple hidden>
+           </div>
+         </div>
+         <div class="cl-dl-row">
+           <span class="cl-dl-lbl">Download Excel</span>
+           <button type="button" class="cl-btn ghost" id="cl-dl-mto-int">Internal</button>
+           <button type="button" class="cl-btn ghost" id="cl-dl-mto-ext">External</button>
+           <button type="button" class="cl-btn" id="cl-dl-mto-comb">Combined</button>
+         </div>
+       </section>
+
+       <!-- UNIQUE: PDF, Internal + External -->
+       <section class="cl-sec">
+         <div class="cl-sec-head"><span class="cl-sec-title">Unique</span><span class="cl-sec-note">PDF · unique supports</span></div>
+         <div class="cl-sub-drops">
+           <div class="cl-drop" id="cl-drop-uniq-int" data-cat="Internal">
+             <span class="cl-tag">Internal</span>
+             <h3>Add PDF</h3>
+             <p class="cl-st" id="cl-st-uniq-int">Drop .pdf, or click.</p>
+             <input type="file" id="cl-file-uniq-int" accept=".pdf" multiple hidden>
+           </div>
+           <div class="cl-drop" id="cl-drop-uniq-ext" data-cat="External">
+             <span class="cl-tag">External</span>
+             <h3>Add PDF</h3>
+             <p class="cl-st" id="cl-st-uniq-ext">Drop .pdf, or click.</p>
+             <input type="file" id="cl-file-uniq-ext" accept=".pdf" multiple hidden>
+           </div>
+         </div>
+         <div class="cl-dl-row">
+           <span class="cl-dl-lbl">Download PDF</span>
+           <button type="button" class="cl-btn ghost" id="cl-dl-uniq-int">Internal</button>
+           <button type="button" class="cl-btn ghost" id="cl-dl-uniq-ext">External</button>
+           <button type="button" class="cl-btn" id="cl-dl-uniq-comb">Combined</button>
+         </div>
+       </section>
+     </div>
+
+     <div id="cl-msg" class="cl-msg" style="display:none;"></div>
+
+     <div id="cl-bulk" class="cl-bulk" style="display:none;">
+       <span id="cl-bulk-count">0 selected</span>
+       <button type="button" class="cl-btn cl-del" id="cl-bulk-del">Delete selected</button>
+       <button type="button" class="cl-btn ghost" id="cl-bulk-clear">Clear</button>
+     </div>
+     <input type="file" id="cl-replace-input" hidden>
+
+     <div class="cl-results">
+       <table>
+         <tbody id="cl-log"><tr><td colspan="7" class="cl-empty">No files added yet for this platform.</td></tr></tbody>
+       </table>
+     </div>
+   </div><!-- /view-conslist -->
+
+   <div id="view-booklet" class="view hidden">
+     <div class="mhead">
+       <h1>Booklet</h1>
+       <p class="sub"><span class="client-tag">—</span> Assemble drawings into a booklet.</p>
+     </div>
+     <section class="panel bk">
+       <style>
+         #view-booklet .bk-note { color: var(--muted); font-size: 13px; margin: 0 0 18px; line-height: 1.5; }
+         #view-booklet .bk-subhead { font-size: 13px; font-weight: 700; color: var(--ink); margin: 4px 0 12px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+         #view-booklet .bk-subhead span { font-weight: 400; color: var(--faint); }
+         #view-booklet .bk-file:last-of-type { margin-bottom: 4px; }
+         #view-booklet .bk-grid { margin-bottom: 22px; }
+         #view-booklet .bk-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
+         #view-booklet .bk-field { display: flex; flex-direction: column; gap: 6px; }
+         #view-booklet .bk-field > span, #view-booklet .bk-lbl { font-size: 13px; font-weight: 600; color: var(--muted); }
+         #view-booklet input[type=text] { border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px; font: inherit; font-size: 14px; color: var(--ink); background: #fff; width: 100%; }
+         #view-booklet input[type=text]:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,70,229,.12); }
+         #view-booklet .bk-file { margin-bottom: 15px; }
+         #view-booklet .bk-lbl { display: block; margin-bottom: 6px; }
+         #view-booklet .bk-row { display: flex; gap: 10px; align-items: center; }
+         #view-booklet .bk-row input[type=text] { flex: 1; }
+         #view-booklet .bk-or { color: var(--faint); font-size: 12px; }
+         #view-booklet .bk-choose { display: inline-block; background: #64748b; color: #fff; border: 1px solid #64748b; border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer; white-space: nowrap; }
+         #view-booklet .bk-choose:hover { background: #4b5563; border-color: #4b5563; }
+         #view-booklet .msg { padding: 12px 14px; border-radius: 8px; font-size: 14px; margin-top: 14px; line-height: 1.5; }
+         #view-booklet .msg.ok { background: var(--match-bg); color: var(--match-fg); }
+         #view-booklet .msg.ok a { color: inherit; font-weight: 700; }
+       </style>
+
+       <p class="bk-note">Fills the <b>revision block</b> (below) and the Appendix A table (from the Excel, 45 rows/page) into the Word template, then appends the drawings PDF after Appendix B — producing one merged PDF. Runs on the local Windows app (needs Microsoft Word). Provide each file as a path <i>or</i> upload it.</p>
+
+       <div class="bk-subhead">Revision block <span>— filled into the cover approval table &amp; page headers</span></div>
+       <div class="bk-grid">
+         <label class="bk-field"><span>Rev</span><input type="text" id="bk-rev" placeholder="00"></label>
+         <label class="bk-field"><span>Date</span><input type="text" id="bk-date" placeholder="dd-mm-yyyy"></label>
+         <label class="bk-field"><span>Description of Revision</span><input type="text" id="bk-description" placeholder="e.g. Issued for Construction"></label>
+         <label class="bk-field"><span>Prepared</span><input type="text" id="bk-prepared"></label>
+         <label class="bk-field"><span>Verified</span><input type="text" id="bk-verified"></label>
+         <label class="bk-field"><span>Approved (Discipline Leader)</span><input type="text" id="bk-approved"></label>
+       </div>
+
+       <div class="bk-subhead">Files</div>
+       <div class="bk-file">
+         <label class="bk-lbl">Word template (.docx)</label>
+         <div class="bk-row">
+           <input type="text" id="bk-template-path" placeholder="Paste full path to the .docx, or choose a file →">
+           <span class="bk-or">or</span>
+           <label class="bk-choose">Choose File<input type="file" id="bk-template-file" accept=".docx" hidden></label>
+         </div>
+       </div>
+
+       <div class="bk-file">
+         <label class="bk-lbl">Excel data (.xlsx)</label>
+         <div class="bk-row">
+           <input type="text" id="bk-excel-path" placeholder="Paste full path to the .xlsx, or choose a file →">
+           <span class="bk-or">or</span>
+           <label class="bk-choose">Choose File<input type="file" id="bk-excel-file" accept=".xlsx" hidden></label>
+         </div>
+       </div>
+
+       <div class="bk-file">
+         <label class="bk-lbl">Drawings PDF (Appendix B)</label>
+         <div class="bk-row">
+           <input type="text" id="bk-drawings-path" placeholder="Paste full path to the drawings .pdf, or choose a file →">
+           <span class="bk-or">or</span>
+           <label class="bk-choose">Choose File<input type="file" id="bk-drawings-file" accept=".pdf" hidden></label>
+         </div>
+       </div>
+
+       <div class="bk-file">
+         <label class="bk-lbl">Material Statistics for Released Supports (.xlsx) <span style="font-weight:400;color:var(--faint)">— optional</span></label>
+         <div class="bk-row">
+           <input type="text" id="bk-bom-path" placeholder="Paste full path to the material statistics .xlsx, or choose a file →">
+           <span class="bk-or">or</span>
+           <label class="bk-choose">Choose File<input type="file" id="bk-bom-file" accept=".xlsx" hidden></label>
+         </div>
+       </div>
+
+       <div class="bar">
+         <button id="bk-run">Generate booklet</button>
+         <button id="bk-download" class="hidden">⬇ Download PDF</button>
+         <button id="bk-download-word" class="hidden">⬇ Download Word</button>
+         <span class="fname" id="bk-status">Ready</span>
+       </div>
+       <div id="bk-error" class="msg err hidden"></div>
+       <div id="bk-result" class="msg ok hidden"></div>
+     </section>
+   </div><!-- /view-booklet -->
+
+   <div id="view-empty" class="view hidden">
+     <div class="mhead">
+       <h1>No tools yet</h1>
+       <p class="sub"><span class="client-tag" id="empty-client">—</span> Tools for this client haven't been added.</p>
+     </div>
+     <section class="panel placeholder">
+       <span class="ph-ic">
+         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+       </span>
+       <h2>Nothing here — yet</h2>
+       <p>This client is set up but has no tools configured. Tell me which tools it should have and I'll add them, just like S2NERGY.</p>
+     </section>
+   </div><!-- /view-empty -->
+
+   <div id="view-profile" class="view hidden">
+     <div class="mhead"><h1>My Profile</h1><p class="sub">Manage your account details.</p></div>
+     <div class="prof-card">
+       <div class="prof-head">
+         <span class="prof-av" id="pf-av"></span>
+         <div>
+           <h2 id="pf-title">—</h2>
+           <p id="pf-subtitle">—</p>
+           <label class="btn ghost" style="display:inline-block;margin-top:8px;cursor:pointer;padding:6px 12px;font-size:13px">Change photo<input type="file" id="pf-photo" accept="image/*" hidden></label>
+         </div>
+       </div>
+       <div class="prof-grid">
+         <div class="pf"><label>Full name</label><input type="text" id="pf-name"></div>
+         <div class="pf"><label>Role</label><select id="pf-role"></select></div>
+         <div class="pf full"><label>Email</label><input type="email" id="pf-email"></div>
+       </div>
+       <div class="prof-actions">
+         <button class="btn" id="pf-save">Save changes</button>
+         <span class="prof-msg" id="pf-msg"></span>
+       </div>
+
+       <h3>Change password</h3>
+       <div class="prof-grid">
+         <div class="pf"><label>Current password</label><input type="password" id="pf-cur" autocomplete="current-password"></div>
+         <div class="pf"><label>New password</label><input type="password" id="pf-new" autocomplete="new-password"></div>
+       </div>
+       <div class="prof-actions">
+         <button class="btn" id="pf-pwbtn">Update password</button>
+         <span class="prof-msg" id="pf-pwmsg"></span>
+       </div>
+
+       <div class="prof-actions" style="margin-top:24px;border-top:1px solid var(--border);padding-top:20px">
+         <button class="btn danger" id="pf-logout">Log out</button>
+       </div>
+     </div>
+   </div><!-- /view-profile -->
+
+   <div id="view-admin" class="view hidden">
+     <style>
+       #view-admin .admin-card { background:#fff; border:1px solid var(--border); border-radius:14px; padding:22px; }
+       #view-admin .admin-toolbar { display:flex; align-items:center; gap:16px; margin-bottom:16px; flex-wrap:wrap; }
+       #view-admin .admin-toolbar label { display:flex; align-items:center; gap:8px; font-size:13.5px; font-weight:600; color:var(--ink); cursor:pointer; }
+       #view-admin .admin-msg { font-size:13px; }
+       #view-admin .admin-msg.ok { color:#166534; }
+       #view-admin .admin-msg.err { color:#b91c1c; }
+       #view-admin table { width:100%; border-collapse:collapse; font-size:14px; }
+       #view-admin th { text-align:left; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); padding:8px 10px; border-bottom:1px solid var(--border); }
+       #view-admin td { padding:9px 10px; border-bottom:1px solid var(--border); color:var(--ink); vertical-align:middle; }
+       #view-admin td .ad-you { font-size:11px; color:var(--faint); }
+       #view-admin select.ad-role { border:1px solid var(--border); border-radius:8px; padding:6px 9px; font:inherit; font-size:13px; background:#fff; cursor:pointer; }
+       #view-admin .ad-actions { display:flex; gap:8px; }
+       #view-admin .ad-btn { border:1px solid var(--border); background:#fff; color:var(--ink); border-radius:8px; padding:6px 11px; font-size:12.5px; font-weight:600; cursor:pointer; }
+       #view-admin .ad-btn.danger { color:#b91c1c; border-color:#fca5a5; }
+       #view-admin .ad-btn:hover { background:#f8fafc; }
+     </style>
+     <div class="mhead"><h1>User management</h1><p class="sub">Manage accounts, roles and access. (Admins only.)</p></div>
+     <div class="admin-card">
+       <div class="admin-toolbar">
+         <label><input type="checkbox" id="ad-regopen"> Allow new sign-ups</label>
+         <span class="admin-msg" id="ad-msg"></span>
+       </div>
+       <table>
+         <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Actions</th></tr></thead>
+         <tbody id="ad-tbody"></tbody>
+       </table>
+     </div>
+   </div><!-- /view-admin -->
+
+   <div id="view-tagreport" class="view hidden">
+     <style>
+       #view-tagreport .kbr-panel { background:#fff; border:1px solid var(--border); border-radius:14px; padding:20px; }
+       #view-tagreport .kbr-lbl { display:block; font-weight:600; font-size:13px; color:var(--muted); margin-bottom:6px; }
+       #view-tagreport .kbr-row { display:flex; gap:10px; align-items:center; }
+       #view-tagreport .kbr-row input[type=text] { flex:1; border:1px solid var(--border); border-radius:8px; padding:9px 11px; font:inherit; font-size:14px; color:var(--ink); background:#fff; }
+       #view-tagreport .kbr-row input[type=text]:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(79,70,229,.14); }
+       #view-tagreport .kbr-or { color:var(--faint); font-size:12px; }
+       #view-tagreport .kbr-choose { background:#64748b; color:#fff; border:1px solid #64748b; border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer; white-space:nowrap; }
+       #view-tagreport .kbr-choose:hover { background:#4b5563; }
+       #view-tagreport .kbr-actions { display:flex; gap:12px; align-items:center; margin-top:14px; }
+       #view-tagreport .kbr-btn { background:var(--grad); color:#fff; border:none; border-radius:9px; padding:10px 18px; font-size:14px; font-weight:600; cursor:pointer; }
+       #view-tagreport .kbr-btn.ghost { background:#fff; color:var(--ink); border:1px solid var(--border); }
+       #view-tagreport .kbr-btn:disabled { opacity:.6; cursor:default; }
+       #view-tagreport .kbr-cards { display:none; gap:14px; margin-top:18px; }
+       #view-tagreport .kbr-card { flex:1; background:#fff; border:1px solid var(--border); border-radius:12px; padding:16px 18px; }
+       #view-tagreport .kbr-num { font-size:26px; font-weight:800; color:var(--ink); }
+       #view-tagreport .kbr-cap { font-size:13px; color:var(--muted); margin-top:4px; }
+       #view-tagreport .kbr-results { margin-top:16px; background:#fff; border:1px solid var(--border); border-radius:14px; padding:16px; overflow-x:auto; }
+       #view-tagreport table { width:100%; border-collapse:collapse; font-size:13.5px; }
+       #view-tagreport th { text-align:left; font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); padding:8px 10px; border-bottom:1px solid var(--border); white-space:nowrap; }
+       #view-tagreport td { padding:8px 10px; border-bottom:1px solid var(--border); color:var(--ink); }
+       #view-tagreport td.st { font-weight:700; }
+       #view-tagreport td.st.Delivered { color:#166534; }
+       #view-tagreport td.st.Partial { color:#b45309; }
+       #view-tagreport td.st.Pending { color:#b91c1c; }
+       #view-tagreport .kbr-msg { margin-top:12px; padding:10px 12px; border-radius:8px; font-size:14px; background:#fef2f2; color:#b91c1c; }
+     </style>
+     <div class="mhead">
+       <h1>Tagwise Delivery Report</h1>
+       <p class="sub"><span class="client-tag">KBR</span> Upload a delivery Excel and generate a report grouped by tag.</p>
+     </div>
+     <section class="kbr-panel">
+       <label class="kbr-lbl">Client Excel (.xlsx) — the expected drawing list</label>
+       <div class="kbr-row">
+         <input type="text" id="kbr-excel-path" placeholder="Paste full path to the client .xlsx, or choose a file →">
+         <span class="kbr-or">or</span>
+         <label class="kbr-choose">Choose File<input type="file" id="kbr-excel-file" accept=".xlsx,.xls" hidden></label>
+       </div>
+       <label class="kbr-lbl" style="margin-top:14px">Delivered files — a .zip of the done .dwg / .pdf files</label>
+       <div class="kbr-row">
+         <input type="text" id="kbr-zip-path" placeholder="Paste full path to the .zip, or choose a file →">
+         <span class="kbr-or">or</span>
+         <label class="kbr-choose">Choose File<input type="file" id="kbr-zip-file" accept=".zip" hidden></label>
+       </div>
+       <div class="kbr-actions">
+         <button class="kbr-btn" id="kbr-run">Generate report</button>
+         <button class="kbr-btn ghost hidden" id="kbr-download">⬇ Download Excel</button>
+         <span class="fname" id="kbr-status">Ready</span>
+       </div>
+       <div id="kbr-error" class="kbr-msg hidden"></div>
+     </section>
+
+     <div class="kbr-cards" id="kbr-stats">
+       <div class="kbr-card"><div class="kbr-num" id="kbr-total">0</div><div class="kbr-cap">Total Drawings</div></div>
+       <div class="kbr-card"><div class="kbr-num" id="kbr-deliv" style="color:#166534">0</div><div class="kbr-cap">Delivered</div></div>
+       <div class="kbr-card"><div class="kbr-num" id="kbr-pend" style="color:#b91c1c">0</div><div class="kbr-cap">Pending</div></div>
+     </div>
+
+     <div class="kbr-results hidden" id="kbr-results">
+       <table>
+         <thead><tr><th>S.No</th><th>Drawing No.</th><th>Status</th><th>Delivery Date</th><th>Delivered File</th></tr></thead>
+         <tbody id="kbr-tbody"></tbody>
+       </table>
+     </div>
+   </div><!-- /view-tagreport -->
+  </main>
+
+  <script>
+    const fileInput = document.getElementById('file');
+    const drop = document.getElementById('drop');
+    const runBtn = document.getElementById('run');
+    const fname = document.getElementById('fname');
+    const errBox = document.getElementById('error');
+    const results = document.getElementById('results');
+    const tbody = document.getElementById('tbody');
+    const downloadBtn = document.getElementById('download');
+
+    let selectedFile = null;
+    let reportToken = null;
+    let reportName = 'QC Report.xlsx';
+    let allRows = [];
+    let filter = 'all';
+
+    function setFile(f) {
+      selectedFile = f;
+      fname.textContent = f ? f.name : 'No file selected';
+      runBtn.disabled = !f;
+    }
+
+    fileInput.addEventListener('change', e => setFile(e.target.files[0] || null));
+    ['dragover', 'dragenter'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('drag'); }));
+    ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('drag'); }));
+    drop.addEventListener('drop', e => { if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]); });
+
+    function showError(msg) { errBox.textContent = msg; errBox.classList.remove('hidden'); }
+    function clearError() { errBox.classList.add('hidden'); }
+
+    runBtn.addEventListener('click', async () => {
+      if (!selectedFile) return;
+      clearError();
+      runBtn.disabled = true;
+      runBtn.innerHTML = '<span class="spinner"></span>Analyzing…';
+
+      try {
+        const fd = new FormData();
+        fd.append('file', selectedFile);
+        const res = await fetch('/api/analyze', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!res.ok) { showError(data.error || data.detail || 'Analysis failed.'); return; }
+
+        reportToken = data.reportToken;
+        reportName = data.reportName;
+        allRows = data.rows;
+
+        document.getElementById('c-total').textContent = data.summary.total;
+        document.getElementById('c-matched').textContent = data.summary.matched;
+        document.getElementById('c-unmatched').textContent = data.summary.unmatched;
+        document.getElementById('c-duplicate').textContent = data.summary.duplicate;
+
+        filter = 'all';
+        document.querySelectorAll('#filters button').forEach(b => b.classList.toggle('active', b.dataset.f === 'all'));
+        renderRows();
+        results.classList.remove('hidden');
+      } catch (err) {
+        showError('Request failed: ' + err.message);
+      } finally {
+        runBtn.disabled = false;
+        runBtn.textContent = 'Run QC';
+      }
+    });
+
+    function renderRows() {
+      tbody.innerHTML = '';
+      const rows = filter === 'all' ? allRows : allRows.filter(r => r.status === filter);
+      for (const r of rows) {
+        const tr = document.createElement('tr');
+        tr.className = r.status.toLowerCase();
+        tr.innerHTML =
+          `<td>${r.srNo}</td>` +
+          `<td>${escapeHtml(r.fileName)}</td>` +
+          `<td>${escapeHtml(r.drawing1)}</td>` +
+          `<td>${escapeHtml(r.drawing2)}</td>` +
+          `<td class="status-pill">${r.status}</td>`;
+        tbody.appendChild(tr);
+      }
+    }
+
+    document.getElementById('filters').addEventListener('click', e => {
+      if (e.target.tagName !== 'BUTTON') return;
+      filter = e.target.dataset.f;
+      document.querySelectorAll('#filters button').forEach(b => b.classList.toggle('active', b === e.target));
+      renderRows();
+    });
+
+    downloadBtn.addEventListener('click', () => {
+      if (reportToken) window.location.href = '/api/report/' + reportToken;
+    });
+
+    // --- Sync the QC register into the open AutoCAD drawing (live COM) ---
+    const syncBtn = document.getElementById('sync');
+    const syncMsg = document.getElementById('syncMsg');
+
+    function showSyncMsg(msg, ok) {
+      syncMsg.textContent = msg;
+      syncMsg.className = 'sync-msg ' + (ok ? 'ok' : 'err');
+    }
+
+    syncBtn.addEventListener('click', async () => {
+      if (!allRows.length) return;
+      syncBtn.disabled = true;
+      const label = syncBtn.innerHTML;
+      syncBtn.innerHTML = '<span class="spinner"></span>Syncing to AutoCAD…';
+      syncMsg.classList.add('hidden');
+
+      try {
+        const res = await fetch('/api/sync-autocad', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows: allRows })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showSyncMsg(data.detail || data.error || 'Sync failed.', false);
+        } else {
+          showSyncMsg('Synced ' + (data.count ?? allRows.length) + ' rows into AutoCAD — check the open drawing.', true);
+        }
+      } catch (err) {
+        showSyncMsg('Sync failed: ' + err.message, false);
+      } finally {
+        syncBtn.disabled = false;
+        syncBtn.innerHTML = label;
+      }
+    });
+
+    // --- Clients, their tools, and view switching ---
+    // Add a client's tools here to make them appear in the tool-tab row.
+    const TOOLS = {
+      S2NERGY: [ { id: 'qc', label: 'QC Check' }, { id: 'mto', label: 'MTO Check' }, { id: 'conslist', label: 'ConsList' } ],
+      QATAR:   [],
+      UAE:     [ { id: 'booklet', label: 'Booklet' } ],
+      KBR:     [ { id: 'tagreport', label: 'Tagwise Delivery Report' } ],
+    };
+
+    let selectedClient = null;
+    let activeView = 'qc';
+    const toolTabs = document.getElementById('toolTabs');
+
+    // Pick a client: highlight its tab, rebuild the tool row, open its first tool.
+    function selectClient(client) {
+      selectedClient = client;
+      document.querySelectorAll('#clientTabs .ctab').forEach(b => b.classList.toggle('active', b.dataset.client === client));
+      document.querySelectorAll('.client-tag').forEach(t => t.textContent = client);
+      renderToolTabs(client);
+      onClientSelected(client);
+    }
+
+    function renderToolTabs(client) {
+      const tools = TOOLS[client] || [];
+      toolTabs.innerHTML = '';
+      if (!tools.length) {
+        toolTabs.innerHTML = '<span class="no-tools">No tools yet for ' + client + '</span>';
+        switchView('empty');
+        return;
+      }
+      tools.forEach(t => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'ttab';
+        b.dataset.view = t.id;
+        b.textContent = t.label;
+        b.addEventListener('click', () => switchView(t.id));
+        toolTabs.appendChild(b);
+      });
+      // Keep the current tool if this client offers it, else use the first one.
+      const keep = tools.some(t => t.id === activeView) ? activeView : tools[0].id;
+      switchView(keep);
+    }
+
+    function switchView(view) {
+      if (!document.getElementById('view-' + view)) view = 'empty';
+      activeView = view;
+      document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+      document.getElementById('view-' + view).classList.remove('hidden');
+      document.querySelectorAll('#toolTabs .ttab').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+      // The Status key legend only applies to QC Check — hide it for every other tool.
+      const sk = document.getElementById('statusKey');
+      if (sk) sk.style.display = (view === 'qc') ? '' : 'none';
+      // ConsList loads its live state whenever it becomes the active tool.
+      if (view === 'conslist' && window.loadConsList) window.loadConsList();
+      // Corner logo shows on every page except the Home welcome screen.
+      const cl = document.getElementById('cornerLogo');
+      if (cl) cl.style.display = (view === 'home') ? 'none' : '';
+      // The client/tool tabs are always shown on tool + home views (hidden only on profile).
+      const tb = document.getElementById('toolbar');
+      if (tb) tb.style.display = '';
+    }
+
+    // Neutral landing screen shown before any client/tool is picked.
+    function showHome() {
+      selectedClient = null;
+      activeView = 'home';
+      document.querySelectorAll('#clientTabs .ctab').forEach(b => b.classList.remove('active'));
+      toolTabs.innerHTML = '';
+      document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+      document.getElementById('view-home').classList.remove('hidden');
+      const sk = document.getElementById('statusKey');
+      if (sk) sk.style.display = 'none';
+      const cl = document.getElementById('cornerLogo');
+      if (cl) cl.style.display = 'none';
+      const tb = document.getElementById('toolbar');
+      if (tb) tb.style.display = '';
+    }
+
+    document.querySelectorAll('#clientTabs .ctab').forEach(btn => {
+      btn.addEventListener('click', () => selectClient(btn.dataset.client));
+    });
+
+    // Hook: extend this to load client-specific behaviour when a client is picked.
+    function onClientSelected(client) {
+      console.log('Client selected:', client);
+    }
+
+    // Default: neutral Home screen — no client/tool selected until the user picks one.
+    showHome();
+
+    // --- Booklet tool (QATAR): fill Word template + append drawings -> merged PDF ---
+    const bkRun = document.getElementById('bk-run');
+    if (bkRun) {
+      // On (re)load, clear the file-path boxes and disable autocomplete so a browser-restored
+      // bare filename can't be submitted as a path (which caused "Template file not found").
+      ['template', 'excel', 'drawings', 'bom'].forEach(n => {
+        const el = document.getElementById('bk-' + n + '-path');
+        if (el) { el.value = ''; el.setAttribute('autocomplete', 'off'); }
+      });
+
+      const bkStatus = document.getElementById('bk-status');
+      const bkError = document.getElementById('bk-error');
+      const bkResult = document.getElementById('bk-result');
+      const bkVal = id => (document.getElementById(id).value || '').trim();
+
+      const bkAttach = (fd, name) => {
+        const file = document.getElementById('bk-' + name + '-file').files[0];
+        const path = bkVal('bk-' + name + '-path');
+        if (file) { fd.append(name + 'File', file); return true; }
+        if (path) { fd.append(name + 'Path', path); return true; }
+        return false;
+      };
+
+      // Suggested download file name, based on the chosen template.
+      const bkSuggestedBase = () => {
+        const tf = document.getElementById('bk-template-file').files[0];
+        const tp = bkVal('bk-template-path');
+        let base = tf ? tf.name : (tp ? tp.split(/[\\/]/).pop() : '');
+        base = base.replace(/\.docx$/i, '');
+        return base ? base + ' - Booklet' : 'Booklet';
+      };
+
+      // When a file is picked via "Choose File", show its name in the path field.
+      ['template', 'excel', 'drawings', 'bom'].forEach(name => {
+        const fi = document.getElementById('bk-' + name + '-file');
+        if (fi) fi.addEventListener('change', () => {
+          const f = fi.files[0];
+          if (f) document.getElementById('bk-' + name + '-path').value = f.name;
+        });
+      });
+
+      // Download buttons (shown after a successful generation).
+      const bkDownload = document.getElementById('bk-download');
+      const bkDownloadWord = document.getElementById('bk-download-word');
+      let bkDownloadBase = 'Booklet';
+      const bkGrab = (format, ext) => {
+        // Download straight to the browser's Downloads folder.
+        const a = document.createElement('a');
+        a.href = '/api/booklet/download?format=' + format;
+        a.download = bkDownloadBase + ext;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        bkStatus.textContent = 'Downloading to your Downloads folder…';
+      };
+      bkDownload.addEventListener('click', () => bkGrab('pdf', '.pdf'));
+      bkDownloadWord.addEventListener('click', () => bkGrab('word', '.docx'));
+
+      bkRun.addEventListener('click', async () => {
+        bkError.classList.add('hidden');
+        bkResult.classList.add('hidden');
+        bkDownload.classList.add('hidden');
+        bkDownloadWord.classList.add('hidden');
+
+        const fd = new FormData();
+        fd.append('rev', bkVal('bk-rev'));
+        fd.append('date', bkVal('bk-date'));
+        fd.append('description', bkVal('bk-description'));
+        fd.append('prepared', bkVal('bk-prepared'));
+        fd.append('verified', bkVal('bk-verified'));
+        fd.append('approved', bkVal('bk-approved'));
+
+        if (!bkVal('bk-date')) {
+          bkError.textContent = 'Please enter the Date (it fills into the headers and cover).';
+          bkError.classList.remove('hidden');
+          return;
+        }
+
+        bkAttach(fd, 'bom'); // optional Material Statistics Excel
+        const haveAll = ['template', 'excel', 'drawings'].map(n => bkAttach(fd, n)).every(Boolean);
+        if (!haveAll) {
+          bkError.textContent = 'Please provide the Template, Excel and Drawings PDF (each as a path or an upload).';
+          bkError.classList.remove('hidden');
+          return;
+        }
+
+        bkRun.disabled = true;
+        bkRun.innerHTML = '<span class="spinner"></span>Generating…';
+        bkStatus.textContent = 'Filling template, converting to PDF and merging drawings… this can take a minute.';
+
+        try {
+          const res = await fetch('/api/booklet', { method: 'POST', body: fd });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            bkError.textContent = data.detail || data.error || 'Booklet generation failed.';
+            bkError.classList.remove('hidden');
+            bkStatus.textContent = 'Failed.';
+            return;
+          }
+
+          bkDownloadBase = bkSuggestedBase();
+          bkResult.innerHTML = '✓ Booklet generated successfully (' + data.sizeMB + ' MB). Download as PDF or Word.';
+          bkResult.classList.remove('hidden');
+          bkDownload.classList.remove('hidden');
+          bkDownloadWord.classList.remove('hidden');
+          bkStatus.textContent = 'Done.';
+        } catch (err) {
+          bkError.textContent = 'Request failed: ' + err.message;
+          bkError.classList.remove('hidden');
+          bkStatus.textContent = 'Failed.';
+        } finally {
+          bkRun.disabled = false;
+          bkRun.textContent = 'Generate booklet';
+        }
+      });
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    // --- KBR: Tagwise Delivery Report ---
+    (function () {
+      const runBtn = document.getElementById('kbr-run');
+      if (!runBtn) return;
+      // Clear path boxes on load so a browser-restored bare filename isn't sent as a path.
+      ['excel', 'zip'].forEach(n => {
+        const el = document.getElementById('kbr-' + n + '-path');
+        if (el) { el.value = ''; el.setAttribute('autocomplete', 'off'); }
+      });
+      const statusEl = document.getElementById('kbr-status');
+      const errEl = document.getElementById('kbr-error');
+      const dlBtn = document.getElementById('kbr-download');
+      let token = null;
+
+      // Mirror a chosen file's name into its path box.
+      [['kbr-excel-file', 'kbr-excel-path'], ['kbr-zip-file', 'kbr-zip-path']].forEach(([fi, pa]) => {
+        const f = document.getElementById(fi);
+        f.addEventListener('change', () => { if (f.files[0]) document.getElementById(pa).value = f.files[0].name; });
+      });
+      dlBtn.addEventListener('click', () => { if (token) window.location.href = '/api/report/' + token; });
+
+      // Attach an input as <name>File (upload) or <name>Path (typed path). Returns true if provided.
+      const attach = (fd, name) => {
+        const file = document.getElementById('kbr-' + name + '-file').files[0];
+        const path = (document.getElementById('kbr-' + name + '-path').value || '').trim();
+        if (file) { fd.append(name + 'File', file); return true; }
+        if (path) { fd.append(name + 'Path', path); return true; }
+        return false;
+      };
+
+      runBtn.addEventListener('click', async () => {
+        errEl.classList.add('hidden');
+        const fd = new FormData();
+        const haveExcel = attach(fd, 'excel'), haveZip = attach(fd, 'zip');
+        if (!haveExcel || !haveZip) {
+          errEl.textContent = 'Provide both the client Excel and the .zip of delivered files.';
+          errEl.classList.remove('hidden'); return;
+        }
+
+        runBtn.disabled = true; runBtn.innerHTML = '<span class="spinner"></span>Matching…'; statusEl.textContent = 'Reading files…';
+        try {
+          const res = await fetch('/api/kbr/tagreport', { method: 'POST', body: fd });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) { errEl.textContent = data.error || data.detail || 'Report failed.'; errEl.classList.remove('hidden'); statusEl.textContent = 'Failed.'; return; }
+          token = data.reportToken;
+          document.getElementById('kbr-total').textContent = data.summary.total;
+          document.getElementById('kbr-deliv').textContent = data.summary.delivered;
+          document.getElementById('kbr-pend').textContent = data.summary.pending;
+          document.getElementById('kbr-stats').style.display = 'flex';
+          const tb = document.getElementById('kbr-tbody'); tb.innerHTML = '';
+          data.rows.forEach(r => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = '<td>' + r.srNo + '</td><td>' + escapeHtml(r.drawingNo) +
+              '</td><td class="st ' + r.status + '">' + r.status + '</td><td>' + escapeHtml(r.deliveryDate) +
+              '</td><td>' + escapeHtml(r.matchedFile) + '</td>';
+            tb.appendChild(tr);
+          });
+          document.getElementById('kbr-results').classList.remove('hidden');
+          dlBtn.classList.remove('hidden');
+          statusEl.textContent = 'Done — ' + data.summary.delivered + ' delivered, ' + data.summary.pending + ' pending of ' + data.summary.total + ' (matched against ' + data.summary.doneFiles + ' files).';
+        } catch (e) {
+          errEl.textContent = 'Request failed: ' + e.message; errEl.classList.remove('hidden'); statusEl.textContent = 'Failed.';
+        } finally {
+          runBtn.disabled = false; runBtn.textContent = 'Generate report';
+        }
+      });
+    })();
+  </script>
+
+  <!-- ConsList (S2NERGY): daily Excel/PDF consolidation per platform -->
+  <script>
+  (function () {
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    const $ = id => document.getElementById(id);
+    let state = null;
+    let rowOrder = [];        // flat file order for shift-range selection
+    let lastIdx = null;       // last checkbox index clicked (for shift-select)
+    let replaceTarget = null; // id of the file currently being replaced
+
+    function msg(text, kind) {
+      const m = $('cl-msg'); if (!m) return;
+      if (!text) { m.style.display = 'none'; return; }
+      m.textContent = text; m.className = 'cl-msg ' + (kind || 'ok'); m.style.display = 'block';
+    }
+
+    async function loadConsList() {
+      try {
+        const res = await fetch('/api/conslist/state');
+        if (res.status === 401) return;
+        state = await res.json();
+        const sel = $('cl-project'); if (!sel) return;
+        const prev = sel.value;
+        sel.innerHTML = '';
+        const ph = document.createElement('option');
+        ph.value = ''; ph.textContent = 'Select project no'; ph.disabled = true; ph.selected = true;
+        sel.appendChild(ph);
+        (state.projects || []).forEach(p => {
+          const o = document.createElement('option'); o.value = p; o.textContent = p; sel.appendChild(o);
+        });
+        sel.value = (prev && state.projects.includes(prev)) ? prev : '';
+        render();
+      } catch (e) { msg('Could not load ConsList: ' + e.message, 'err'); }
+    }
+    window.loadConsList = loadConsList;
+
+    function pdata() {
+      const p = state ? $('cl-project').value : '';
+      const d = (state && state.data && state.data[p]) || null;
+      return { p, i: d ? d.Internal : null, e: d ? d.External : null };
+    }
+
+    const dkey = d => { const m = /^(\d{2})-(\d{2})-(\d{4})$/.exec(d || ''); return m ? new Date(+m[3], +m[2]-1, +m[1]).getTime() : Number.MAX_SAFE_INTEGER; };
+
+    function setSt(id, has, txt, prompt) {
+      const el = $(id); if (!el) return;
+      el.textContent = has ? txt : prompt;
+      el.classList.toggle('has', !!has);
+    }
+
+    function render() {
+      const { p, i, e } = pdata();
+      const log = $('cl-log'); if (!log) return;
+
+      setSt('cl-st-mto-int', i && i.excelFiles > 0, i ? (i.excelFiles + ' file(s) · ' + i.excelRows + ' rows') : '', 'Drop .xlsx / .xls, or click.');
+      setSt('cl-st-mto-ext', e && e.excelFiles > 0, e ? (e.excelFiles + ' file(s) · ' + e.excelRows + ' rows') : '', 'Drop .xlsx / .xls, or click.');
+      setSt('cl-st-uniq-int', i && i.pdfFiles > 0, i ? (i.pdfFiles + ' file(s) · ' + i.pdfPages + ' pages') : '', 'Drop .pdf, or click.');
+      setSt('cl-st-uniq-ext', e && e.pdfFiles > 0, e ? (e.pdfFiles + ' file(s) · ' + e.pdfPages + ' pages') : '', 'Drop .pdf, or click.');
+
+      rowOrder = [];
+      if (!p) { log.innerHTML = '<tr><td colspan="7" class="cl-empty">Select a project to see its files.</td></tr>'; updateBulk(); return; }
+      const entries = []
+        .concat(((i && i.log) || []).map(x => Object.assign({ scope: 'Internal' }, x)))
+        .concat(((e && e.log) || []).map(x => Object.assign({ scope: 'External' }, x)));
+      entries.sort((a, b) => dkey(a.date) - dkey(b.date));
+      if (!entries.length) { log.innerHTML = '<tr><td colspan="7" class="cl-empty">No files added yet for this platform.</td></tr>'; updateBulk(); return; }
+
+      // Group by date — the date sits once above the column labels for that day's files.
+      let html = '', last = null;
+      entries.forEach(en => {
+        if (en.date !== last) {
+          html += '<tr class="cl-datehdr"><td colspan="7">' + esc(en.date) + '</td></tr>' +
+            '<tr class="cl-colhdr"><td></td><td>Type</td><td>Scope</td><td>File</td><td>Rows / Pages</td><td></td><td></td></tr>';
+          last = en.date;
+        }
+        const idx = rowOrder.length; rowOrder.push(en.id);
+        html += '<tr data-id="' + esc(en.id) + '">' +
+          '<td class="cl-chk-td"><input type="checkbox" class="cl-chk" data-id="' + esc(en.id) + '" data-idx="' + idx + '"></td>' +
+          '<td class="ty ' + esc(en.type) + '">' + esc(en.type) + '</td><td class="sc">' + esc(en.scope) +
+          '</td><td>' + esc(en.name) + '</td><td>' + en.count + '</td>' +
+          '<td><button type="button" class="cl-row-btn cl-rep" data-id="' + esc(en.id) + '" title="Replace this file">Replace</button></td>' +
+          '<td><button type="button" class="cl-row-btn cl-del2" data-id="' + esc(en.id) + '" title="Delete this file">Delete</button></td>' +
+          '</tr>';
+      });
+      log.innerHTML = html;
+      updateBulk();
+    }
+
+    function updateBulk() {
+      const log = $('cl-log'); if (!log) return;
+      const n = log.querySelectorAll('.cl-chk:checked').length;
+      const bar = $('cl-bulk');
+      if (n > 0) { bar.style.display = 'flex'; $('cl-bulk-count').textContent = n + ' selected'; }
+      else bar.style.display = 'none';
+    }
+
+    async function deleteFiles(ids) {
+      const { p } = pdata();
+      if (!p || !ids.length) return;
+      if (!confirm('Delete ' + ids.length + ' file(s)?\n\nThe consolidated Excel/PDF will be rebuilt without them.')) return;
+      try {
+        const res = await fetch('/api/conslist/file/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ platform: p, ids }) });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok) { msg(d.error || 'Delete failed.', 'err'); return; }
+        lastIdx = null;
+        await loadConsList();
+        msg('Deleted ' + (d.deleted || ids.length) + ' file(s).', 'ok');
+      } catch (e) { msg('Delete failed: ' + e.message, 'err'); }
+    }
+
+    async function upload(files, category) {
+      const { p } = pdata();
+      if (!p) { msg('Select a project first.', 'err'); return; }
+      if (!files || !files.length) return;
+      const fd = new FormData();
+      fd.append('platform', p); fd.append('category', category);
+      for (const f of files) fd.append('files', f, f.name);
+      msg('Adding ' + files.length + ' file(s) to ' + category + '…', 'ok');
+      try {
+        const res = await fetch('/api/conslist/add', { method: 'POST', body: fd });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { msg(data.error || data.detail || 'Add failed.', 'err'); return; }
+        let s = category + ': added ' + data.excelFiles + ' Excel (' + data.excelRows + ' rows), ' + data.pdfFiles + ' PDF (' + data.pdfPages + ' pages).';
+        const bad = data.errors && data.errors.length;
+        if (bad) s += ' — Skipped: ' + data.errors.join('; ');
+        msg(s, bad ? 'err' : 'ok');
+        await loadConsList();
+      } catch (e) { msg('Add failed: ' + e.message, 'err'); }
+    }
+
+    function wireDrop(zoneId, inputId, accept, category) {
+      const zone = $(zoneId), input = $(inputId); if (!zone) return;
+      zone.addEventListener('click', () => { if (!pdata().p) { msg('Select a project first.', 'err'); return; } msg(''); input.click(); });
+      input.addEventListener('change', () => { upload(input.files, category); input.value = ''; });
+      ['dragenter','dragover'].forEach(ev => zone.addEventListener(ev, e => { e.preventDefault(); zone.classList.add('drag'); }));
+      ['dragleave','drop'].forEach(ev => zone.addEventListener(ev, e => { e.preventDefault(); zone.classList.remove('drag'); }));
+      zone.addEventListener('drop', e => {
+        const files = [...(e.dataTransfer.files || [])].filter(f => accept.some(a => f.name.toLowerCase().endsWith(a)));
+        if (!files.length) { msg('Please drop ' + accept.join(' / ') + ' files here.', 'err'); return; }
+        upload(files, category);
+      });
+    }
+
+    async function download(type, scope) {
+      const { p, i, e } = pdata();
+      if (!p) { msg('Select a project first.', 'err'); return; }
+      const hasI = type === 'excel' ? (i && i.hasExcel) : (i && i.hasPdf);
+      const hasE = type === 'excel' ? (e && e.hasExcel) : (e && e.hasPdf);
+      const ok = scope === 'Internal' ? hasI : scope === 'External' ? hasE : (hasI || hasE);
+      const label = type === 'excel' ? 'Excel' : 'PDF';
+      if (!ok) { msg('Nothing to download — no ' + scope + ' ' + label + ' has been uploaded for this project yet.', 'err'); return; }
+      try {
+        // fetch as a blob so a server-side error stays in-app (never navigates to a JSON page)
+        const res = await fetch('/api/conslist/download?platform=' + encodeURIComponent(p) + '&type=' + type + '&scope=' + scope);
+        if (!res.ok) { const d = await res.json().catch(() => ({})); msg(d.error || 'Download failed.', 'err'); return; }
+        const blob = await res.blob();
+        const cd = res.headers.get('Content-Disposition') || '';
+        let name = (cd.match(/filename\*=UTF-8''([^;]+)/) || cd.match(/filename="?([^";]+)"?/) || [])[1];
+        name = name ? decodeURIComponent(name) : (p + '_' + scope + '_' + label + (type === 'excel' ? '.xlsx' : '.pdf'));
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+        msg('Downloaded ' + name, 'ok');
+        setTimeout(loadConsList, 800); // revision bumped server-side
+      } catch (e) { msg('Download failed: ' + e.message, 'err'); }
+    }
+
+    function init() {
+      if (!$('cl-project')) return;
+      $('cl-project').addEventListener('change', () => { msg(''); render(); }); // clear any stale "select a project" note
+      wireDrop('cl-drop-mto-int', 'cl-file-mto-int', ['.xlsx', '.xls'], 'Internal');
+      wireDrop('cl-drop-mto-ext', 'cl-file-mto-ext', ['.xlsx', '.xls'], 'External');
+      wireDrop('cl-drop-uniq-int', 'cl-file-uniq-int', ['.pdf'], 'Internal');
+      wireDrop('cl-drop-uniq-ext', 'cl-file-uniq-ext', ['.pdf'], 'External');
+      $('cl-dl-mto-int').addEventListener('click', () => download('excel', 'Internal'));
+      $('cl-dl-mto-ext').addEventListener('click', () => download('excel', 'External'));
+      $('cl-dl-mto-comb').addEventListener('click', () => download('excel', 'Combined'));
+      $('cl-dl-uniq-int').addEventListener('click', () => download('pdf', 'Internal'));
+      $('cl-dl-uniq-ext').addEventListener('click', () => download('pdf', 'External'));
+      $('cl-dl-uniq-comb').addEventListener('click', () => download('pdf', 'Combined'));
+
+      // Log table: checkbox (with shift-range) select, per-row Replace / Delete.
+      const logEl = $('cl-log');
+      logEl.addEventListener('click', e => {
+        const chk = e.target.closest('.cl-chk');
+        if (chk) {
+          const idx = +chk.dataset.idx;
+          if (e.shiftKey && lastIdx !== null) {
+            const a = Math.min(lastIdx, idx), b = Math.max(lastIdx, idx);
+            logEl.querySelectorAll('.cl-chk').forEach(box => { const bi = +box.dataset.idx; if (bi >= a && bi <= b) box.checked = chk.checked; });
+          }
+          lastIdx = idx;
+          updateBulk();
+          return;
+        }
+        const rep = e.target.closest('.cl-rep');
+        if (rep) { replaceTarget = rep.dataset.id; const inp = $('cl-replace-input'); inp.value = ''; inp.click(); return; }
+        const del = e.target.closest('.cl-del2');
+        if (del) { deleteFiles([del.dataset.id]); return; }
+      });
+
+      $('cl-bulk-del').addEventListener('click', () => {
+        const ids = [...logEl.querySelectorAll('.cl-chk:checked')].map(c => c.dataset.id);
+        if (!ids.length) { msg('Select files to delete first.', 'err'); return; }
+        deleteFiles(ids);
+      });
+      $('cl-bulk-clear').addEventListener('click', () => { logEl.querySelectorAll('.cl-chk:checked').forEach(c => c.checked = false); lastIdx = null; updateBulk(); });
+
+      $('cl-replace-input').addEventListener('change', async () => {
+        const inp = $('cl-replace-input'); const file = inp.files && inp.files[0];
+        const { p } = pdata();
+        if (!file || !replaceTarget || !p) { inp.value = ''; replaceTarget = null; return; }
+        const fd = new FormData(); fd.append('platform', p); fd.append('id', replaceTarget); fd.append('file', file, file.name);
+        msg('Replacing…', 'ok');
+        try {
+          const res = await fetch('/api/conslist/file/replace', { method: 'POST', body: fd });
+          const d = await res.json().catch(() => ({}));
+          if (!res.ok) { msg(d.error || 'Replace failed.', 'err'); return; }
+          await loadConsList();
+          msg('File replaced with ' + file.name + '.', 'ok');
+        } catch (e) { msg('Replace failed: ' + e.message, 'err'); }
+        finally { inp.value = ''; replaceTarget = null; }
+      });
+      const projNote = (t, ok) => {
+        const el = $('cl-proj-err'); if (!el) return;
+        el.classList.toggle('ok', !!ok);
+        if (!t) { el.style.display = 'none'; el.textContent = ''; } else { el.textContent = t; el.style.display = 'block'; }
+      };
+      $('cl-newproj').addEventListener('input', () => projNote(''));
+      $('cl-addproj').addEventListener('click', async () => {
+        const name = $('cl-newproj').value.trim();
+        if (!name) { projNote('Enter a project number.'); $('cl-newproj').focus(); return; }
+        try {
+          const res = await fetch('/api/conslist/project', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) { projNote(data.error || 'Could not add project.'); return; }
+          $('cl-newproj').value = '';
+          await loadConsList();
+          $('cl-project').value = name; render();
+          projNote('Project "' + name + '" added.', true);
+        } catch (e) { projNote('Could not add project: ' + e.message); }
+      });
+
+      $('cl-delproj').addEventListener('click', async () => {
+        const name = $('cl-project').value;
+        if (!name) { msg('Select a project to delete.', 'err'); return; }
+        if (!confirm('Delete project "' + name + '"?\n\nThis permanently removes it and its consolidated Excel/PDF (Internal and External).')) return;
+        try {
+          const res = await fetch('/api/conslist/project/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) { msg(data.error || 'Could not delete project.', 'err'); return; }
+          await loadConsList();
+          msg('Project "' + name + '" deleted.', 'ok');
+        } catch (e) { msg('Could not delete project: ' + e.message, 'err'); }
+      });
+    }
+
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+    else init();
+  })();
+  </script>
+
+  <style>
+    /* ---- sidebar user chip ---- */
+    .side-bottom { margin-top: auto; }
+    .side-user { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px; cursor: pointer; background: rgba(255,255,255,.05); margin-bottom: 12px; }
+    .side-user:hover { background: rgba(255,255,255,.12); }
+    .su-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--grad); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; overflow: hidden; flex-shrink: 0; }
+    .su-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .su-meta { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+    .su-name { color: #fff; font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .su-role { color: var(--sidebar-muted); font-size: 11.5px; }
+
+    /* ---- auth gate ---- */
+    #authGate { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 20px; background: linear-gradient(135deg,#1b1e3a 0%,#241a44 55%,#2b1840 100%); }
+    #authGate .auth-card { width: 100%; max-width: 400px; background: #fff; border-radius: 18px; box-shadow: 0 30px 70px rgba(10,8,30,.45); padding: 30px 30px 26px; }
+    #authGate .auth-logo { display: flex; justify-content: center; margin-bottom: 6px; background: linear-gradient(170deg,#1b1e3a,#2b1840); border-radius: 12px; padding: 12px; }
+    #authGate .auth-logo img { max-width: 180px; max-height: 54px; object-fit: contain; }
+    #authGate h2 { margin: 16px 0 4px; font-size: 21px; font-weight: 800; color: var(--ink); text-align: center; }
+    #authGate .auth-sub { margin: 0 0 16px; font-size: 13.5px; color: var(--muted); text-align: center; }
+    #authGate label { display: block; font-size: 12.5px; font-weight: 600; color: var(--muted); margin: 12px 0 5px; }
+    #authGate input[type=text], #authGate input[type=email], #authGate input[type=password] { width: 100%; border: 1px solid var(--border); border-radius: 9px; padding: 10px 12px; font: inherit; font-size: 14px; color: var(--ink); background: #fff; }
+    #authGate input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,70,229,.14); }
+    #authGate select { width: 100%; border: 1px solid var(--border); border-radius: 9px; padding: 10px 12px; font: inherit; font-size: 14px; color: var(--ink); background: #fff; cursor: pointer; }
+    #authGate select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,70,229,.14); }
+    #authGate .auth-hint { font-size: 11.5px; color: var(--faint); margin-top: 5px; }
+    #authGate .auth-row { display: flex; align-items: center; margin: 14px 0 2px; font-size: 13px; color: var(--muted); }
+    #authGate .auth-row label { display: flex; align-items: center; gap: 7px; margin: 0; font-weight: 500; cursor: pointer; }
+    #authGate .auth-btn { width: 100%; margin-top: 16px; background: var(--grad); color: #fff; border: none; border-radius: 10px; padding: 12px; font-size: 15px; font-weight: 700; cursor: pointer; }
+    #authGate .auth-btn:disabled { opacity: .6; cursor: default; }
+    #authGate .auth-switch { margin-top: 16px; text-align: center; font-size: 13px; color: var(--muted); }
+    #authGate .auth-switch a { color: var(--accent); font-weight: 600; cursor: pointer; text-decoration: none; }
+    #authGate .auth-err { margin-top: 14px; background: #fef2f2; color: #b91c1c; border-radius: 8px; padding: 10px 12px; font-size: 13px; display: none; }
+    #authGate .hide { display: none; }
+
+    /* ---- profile view ---- */
+    #view-profile .prof-card { background: #fff; border: 1px solid var(--border); border-radius: 14px; padding: 24px; max-width: 640px; }
+    #view-profile .prof-head { display: flex; align-items: center; gap: 16px; margin-bottom: 22px; }
+    #view-profile .prof-av { width: 74px; height: 74px; border-radius: 50%; background: var(--grad); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 26px; overflow: hidden; flex-shrink: 0; }
+    #view-profile .prof-av img { width: 100%; height: 100%; object-fit: cover; }
+    #view-profile .prof-head h2 { margin: 0 0 4px; font-size: 20px; color: var(--ink); }
+    #view-profile .prof-head p { margin: 0; color: var(--muted); font-size: 13.5px; }
+    #view-profile .prof-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    #view-profile .pf { display: flex; flex-direction: column; gap: 6px; }
+    #view-profile .pf.full { grid-column: 1 / -1; }
+    #view-profile label { font-size: 12.5px; font-weight: 600; color: var(--muted); }
+    #view-profile input[type=text], #view-profile input[type=email], #view-profile input[type=password] { border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; font: inherit; font-size: 14px; color: var(--ink); background: #fff; }
+    #view-profile input:disabled { background: #f8fafc; color: var(--muted); }
+    #view-profile input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,70,229,.14); }
+    #view-profile select { border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; font: inherit; font-size: 14px; color: var(--ink); background: #fff; cursor: pointer; }
+    #view-profile select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,70,229,.14); }
+    #view-profile h3 { font-size: 14px; color: var(--ink); margin: 24px 0 12px; border-top: 1px solid var(--border); padding-top: 18px; }
+    #view-profile .prof-actions { margin-top: 18px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    #view-profile .btn { background: var(--grad); color: #fff; border: none; border-radius: 9px; padding: 10px 18px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    #view-profile .btn.ghost { background: #fff; color: var(--ink); border: 1px solid var(--border); }
+    #view-profile .btn.danger { background: #fff; color: #b91c1c; border: 1px solid #fca5a5; }
+    #view-profile .prof-msg { font-size: 13px; }
+    #view-profile .prof-msg.ok { color: #166534; }
+    #view-profile .prof-msg.err { color: #b91c1c; }
+  </style>
+
+  <div id="authGate">
+    <div class="auth-card">
+      <div class="auth-logo"><img src="/logo.png" alt="Logo" onerror="this.style.display='none'"></div>
+
+      <div id="authLogin">
+        <h2>Sign in</h2>
+        <p class="auth-sub">Welcome to Support Automation</p>
+        <label>Email</label>
+        <input type="email" id="li-login" autocomplete="email">
+        <label>Password</label>
+        <input type="password" id="li-pass" autocomplete="current-password">
+        <div class="auth-row" style="justify-content:space-between">
+          <label><input type="checkbox" id="li-remember" checked> Remember me</label>
+          <a onclick="authShow('reset')" style="color:var(--accent);font-weight:600;cursor:pointer">Forgot password?</a>
+        </div>
+        <div class="auth-err" id="li-err"></div>
+        <button class="auth-btn" id="li-btn">Sign in</button>
+        <div class="auth-switch" id="authRegLink">New here? <a onclick="authShow('register')">Create an account</a></div>
+      </div>
+
+      <div id="authRegister" class="hide">
+        <h2>Create account</h2>
+        <p class="auth-sub">Set up your Support Automation login</p>
+        <label>Full name</label>
+        <input type="text" id="re-name" autocomplete="name">
+        <label>Email <span class="auth-hint" style="font-weight:400">(you'll sign in with this)</span></label>
+        <input type="email" id="re-email" autocomplete="email">
+        <label>Role</label>
+        <select id="re-role"></select>
+        <label>Password</label>
+        <input type="password" id="re-pass" autocomplete="new-password">
+        <div class="auth-err" id="re-err"></div>
+        <button class="auth-btn" id="re-btn">Create account</button>
+        <div class="auth-switch">Already have an account? <a onclick="authShow('login')">Sign in</a></div>
+      </div>
+
+      <div id="authReset" class="hide">
+        <h2>Reset password</h2>
+        <p class="auth-sub">Enter your email and choose a new password.</p>
+        <label>Email</label>
+        <input type="email" id="rs-email" autocomplete="email">
+        <label>New password</label>
+        <input type="password" id="rs-newpass" autocomplete="new-password">
+        <div class="auth-err" id="rs-err"></div>
+        <button class="auth-btn" id="rs-submit">Reset password</button>
+        <div class="auth-switch">Remembered it? <a onclick="authShow('login')">Back to sign in</a></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const gate = document.getElementById('authGate');
+      const sideUser = document.getElementById('sideUser');
+      let currentUser = null;
+      let pendingAvatar = null;
+
+      const $ = id => document.getElementById(id);
+      const initials = n => ((n || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('') || '?').toUpperCase();
+
+      // Roles available in the dropdowns (register + profile). Add/edit this list to change them.
+      const ROLES = ['Admin', 'Project Lead', 'Lead Engineer', 'Engineer', 'Designer', 'Draftsman', 'QA/QC Engineer', 'Document Controller', 'Viewer'];
+      function fillRoles(sel, selected) {
+        sel.innerHTML = '';
+        const list = ROLES.slice();
+        if (selected && !list.includes(selected)) list.unshift(selected); // keep any custom existing role
+        list.forEach(r => { const o = document.createElement('option'); o.value = r; o.textContent = r; if (r === selected) o.selected = true; sel.appendChild(o); });
+      }
+      fillRoles($('re-role'), 'Engineer');
+
+      window.authShow = function (which) {
+        $('authLogin').classList.toggle('hide', which !== 'login');
+        $('authRegister').classList.toggle('hide', which !== 'register');
+        $('authReset').classList.toggle('hide', which !== 'reset');
+        ['li-err', 're-err', 'rs-err'].forEach(id => { const e = $(id); if (e) e.style.display = 'none'; });
+        if (which === 'reset') {
+          $('rs-err').style.display = 'none';
+          $('rs-email').value = ''; $('rs-newpass').value = '';
+        }
+      };
+
+      function paintUser(u) {
+        currentUser = u;
+        $('suName').textContent = u.name || u.username;
+        $('suRole').textContent = u.role || '';
+        $('suAvatar').innerHTML = u.avatar ? '<img src="' + u.avatar + '">' : initials(u.name || u.username);
+        sideUser.style.display = 'flex';
+        const an = $('adminNav'); if (an) an.style.display = (u.role === 'Admin') ? 'flex' : 'none';
+      }
+      function showApp(u) { paintUser(u); gate.style.display = 'none'; }
+      function showGate() { gate.style.display = 'flex'; sideUser.style.display = 'none'; const an = $('adminNav'); if (an) an.style.display = 'none'; }
+
+      // Session-expiry: any protected API that returns 401 while signed in bounces to login.
+      const _fetch = window.fetch.bind(window);
+      window.fetch = async (...args) => {
+        const res = await _fetch(...args);
+        try {
+          const url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url) || '';
+          if (res.status === 401 && url.includes('/api/') && !url.includes('/api/auth/login') && !url.includes('/api/auth/register')) {
+            if (currentUser) {
+              currentUser = null; showGate();
+              const e = $('li-err'); if (e) { e.textContent = 'Your session expired — please sign in again.'; e.style.display = 'block'; }
+            }
+          }
+        } catch (e) {}
+        return res;
+      };
+
+      async function loadConfig() {
+        try { const r = await _fetch('/api/auth/config'); if (r.ok) { const d = await r.json(); const l = $('authRegLink'); if (l) l.style.display = d.registrationOpen ? '' : 'none'; } } catch (e) {}
+      }
+
+
+      try { localStorage.removeItem('sa_login'); } catch (e) {} // don't retain/prefill the email
+
+      async function check() {
+        try {
+          const r = await fetch('/api/auth/me');
+          if (r.ok) { const d = await r.json(); showApp(d.user); } else showGate();
+        } catch (e) { showGate(); }
+      }
+
+      const liBtn = $('li-btn');
+      async function doLogin() {
+        const login = $('li-login').value.trim(), pass = $('li-pass').value, remember = $('li-remember').checked;
+        const err = $('li-err'); err.style.display = 'none'; err.style.background = ''; err.style.color = '';
+        if (!login || !pass) { err.textContent = 'Enter your username and password.'; err.style.display = 'block'; return; }
+        liBtn.disabled = true; liBtn.textContent = 'Signing in…';
+        try {
+          const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login, password: pass, remember }) });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) { err.textContent = d.error || 'Sign in failed.'; err.style.display = 'block'; return; }
+          $('li-pass').value = '';
+          showApp(d.user);
+        } catch (e) { err.textContent = 'Request failed: ' + e.message; err.style.display = 'block'; }
+        finally { liBtn.disabled = false; liBtn.textContent = 'Sign in'; }
+      }
+      liBtn.addEventListener('click', doLogin);
+      $('li-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+      const reBtn = $('re-btn');
+      reBtn.addEventListener('click', async () => {
+        const body = { name: $('re-name').value.trim(), email: $('re-email').value.trim(), role: $('re-role').value.trim(), password: $('re-pass').value };
+        const err = $('re-err'); err.style.display = 'none';
+        reBtn.disabled = true; reBtn.textContent = 'Creating…';
+        try {
+          const r = await fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) { err.textContent = d.error || 'Could not create account.'; err.style.display = 'block'; return; }
+          showApp(d.user);
+        } catch (e) { err.textContent = 'Request failed: ' + e.message; err.style.display = 'block'; }
+        finally { reBtn.disabled = false; reBtn.textContent = 'Create account'; }
+      });
+
+      // ---- Self-service password reset (email + new password) ----
+      $('rs-submit').addEventListener('click', async () => {
+        const email = $('rs-email').value.trim(), password = $('rs-newpass').value;
+        const err = $('rs-err'); err.style.display = 'none';
+        if (!email || !password) { err.textContent = 'Enter your email and a new password.'; err.style.display = 'block'; return; }
+        try {
+          const r = await _fetch('/api/auth/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) { err.textContent = d.error || 'Reset failed.'; err.style.display = 'block'; return; }
+          // Sign in automatically with the just-set password so the browser's stale autofill
+          // can't get in the way.
+          try {
+            const lr = await _fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: email, password, remember: true }) });
+            const ld = await lr.json().catch(() => ({}));
+            if (lr.ok) { showApp(ld.user); return; }
+          } catch (e) {}
+          authShow('login');
+          $('li-login').value = email;
+          const le = $('li-err'); le.textContent = 'Password reset — sign in with your new password.'; le.style.display = 'block'; le.style.background = '#f0fdf4'; le.style.color = '#166534';
+        } catch (e) { err.textContent = 'Request failed: ' + e.message; err.style.display = 'block'; }
+      });
+
+      window.openProfile = function () {
+        if (!currentUser) return;
+        $('pf-av').innerHTML = currentUser.avatar ? '<img src="' + currentUser.avatar + '">' : initials(currentUser.name || currentUser.username);
+        $('pf-title').textContent = currentUser.name || currentUser.username;
+        $('pf-subtitle').textContent = (currentUser.role || '') + (currentUser.email ? ' · ' + currentUser.email : '');
+        $('pf-name').value = currentUser.name || '';
+        fillRoles($('pf-role'), currentUser.role || 'Engineer');
+        $('pf-email').value = currentUser.email || '';
+        $('pf-msg').textContent = ''; $('pf-pwmsg').textContent = '';
+        $('pf-cur').value = ''; $('pf-new').value = ''; pendingAvatar = null;
+        document.querySelectorAll('#clientTabs .ctab').forEach(b => b.classList.remove('active'));
+        document.getElementById('toolTabs').innerHTML = '';
+        document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+        document.getElementById('view-profile').classList.remove('hidden');
+        const sk = document.getElementById('statusKey'); if (sk) sk.style.display = 'none';
+        const cl = document.getElementById('cornerLogo'); if (cl) cl.style.display = '';
+        const tb = document.getElementById('toolbar'); if (tb) tb.style.display = 'none'; // no client tabs on profile
+      };
+
+      // ---- Admin: user management ----
+      function adMsg(t, ok) { const m = $('ad-msg'); m.textContent = t; m.className = 'admin-msg ' + (ok ? 'ok' : 'err'); }
+
+      async function loadAdmin() {
+        const r = await fetch('/api/admin/users');
+        if (!r.ok) return;
+        const d = await r.json();
+        $('ad-regopen').checked = !!d.registrationOpen;
+        const tb = $('ad-tbody'); tb.innerHTML = '';
+        d.users.forEach(u => {
+          const roles = ROLES.includes(u.role) ? ROLES : [u.role].concat(ROLES);
+          const opts = roles.map(rr => '<option ' + (rr === u.role ? 'selected' : '') + '>' + escapeHtml(rr) + '</option>').join('');
+          const you = u.id === currentUser.id ? '<div class="ad-you">(you)</div>' : '';
+          const tr = document.createElement('tr');
+          tr.innerHTML =
+            '<td>' + escapeHtml(u.name || '') + you + '</td>' +
+            '<td>' + escapeHtml(u.email || '') + '</td>' +
+            '<td><select class="ad-role" data-id="' + u.id + '">' + opts + '</select></td>' +
+            '<td class="ad-actions"><button class="ad-btn" data-act="reset" data-id="' + u.id + '">Reset password</button>' +
+            '<button class="ad-btn danger" data-act="delete" data-id="' + u.id + '">Delete</button></td>';
+          tb.appendChild(tr);
+        });
+      }
+
+      window.openAdmin = async function () {
+        if (!currentUser || currentUser.role !== 'Admin') return;
+        document.querySelectorAll('#clientTabs .ctab').forEach(b => b.classList.remove('active'));
+        document.getElementById('toolTabs').innerHTML = '';
+        document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+        document.getElementById('view-admin').classList.remove('hidden');
+        const sk = $('statusKey'); if (sk) sk.style.display = 'none';
+        const cl = $('cornerLogo'); if (cl) cl.style.display = '';
+        const tb = $('toolbar'); if (tb) tb.style.display = 'none';
+        adMsg('', true);
+        await loadAdmin();
+      };
+
+      $('ad-tbody').addEventListener('change', async e => {
+        if (!e.target.classList.contains('ad-role')) return;
+        const id = e.target.dataset.id, role = e.target.value;
+        const r = await fetch('/api/admin/role', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, role }) });
+        const d = await r.json().catch(() => ({}));
+        if (r.ok) { adMsg('Role updated.', true); if (id === currentUser.id) { currentUser.role = role; paintUser(currentUser); } }
+        else { adMsg(d.error || 'Failed.', false); loadAdmin(); }
+      });
+
+      $('ad-tbody').addEventListener('click', async e => {
+        const btn = e.target.closest('button'); if (!btn) return;
+        const id = btn.dataset.id, act = btn.dataset.act;
+        if (act === 'reset') {
+          const pw = prompt('Enter a new password for this user (min 6 characters):');
+          if (!pw) return;
+          const r = await fetch('/api/admin/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, password: pw }) });
+          const d = await r.json().catch(() => ({}));
+          adMsg(r.ok ? 'Password reset.' : (d.error || 'Failed.'), r.ok);
+        } else if (act === 'delete') {
+          if (!confirm('Delete this user? This cannot be undone.')) return;
+          const r = await fetch('/api/admin/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+          const d = await r.json().catch(() => ({}));
+          if (r.ok) { adMsg('User deleted.', true); loadAdmin(); } else adMsg(d.error || 'Failed.', false);
+        }
+      });
+
+      $('ad-regopen').addEventListener('change', async e => {
+        const open = e.target.checked;
+        const r = await fetch('/api/admin/registration', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ open }) });
+        const d = await r.json().catch(() => ({}));
+        if (r.ok) adMsg('New sign-ups ' + (open ? 'enabled' : 'disabled') + '.', true);
+        else { adMsg(d.error || 'Failed.', false); e.target.checked = !open; }
+      });
+
+      $('pf-photo').addEventListener('change', e => {
+        const f = e.target.files[0]; if (!f) return;
+        const reader = new FileReader();
+        reader.onload = () => { pendingAvatar = reader.result; $('pf-av').innerHTML = '<img src="' + pendingAvatar + '">'; };
+        reader.readAsDataURL(f);
+      });
+
+      $('pf-save').addEventListener('click', async () => {
+        const msg = $('pf-msg'); msg.className = 'prof-msg'; msg.textContent = 'Saving…';
+        const body = { name: $('pf-name').value.trim(), role: $('pf-role').value.trim(), email: $('pf-email').value.trim(), avatar: pendingAvatar };
+        try {
+          const r = await fetch('/api/auth/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) { msg.className = 'prof-msg err'; msg.textContent = d.error || 'Save failed.'; return; }
+          pendingAvatar = null; paintUser(d.user);
+          $('pf-title').textContent = d.user.name || d.user.username;
+          $('pf-subtitle').textContent = (d.user.role || '') + (d.user.email ? ' · ' + d.user.email : '');
+          msg.className = 'prof-msg ok'; msg.textContent = 'Saved.';
+        } catch (e) { msg.className = 'prof-msg err'; msg.textContent = 'Request failed.'; }
+      });
+
+      $('pf-pwbtn').addEventListener('click', async () => {
+        const msg = $('pf-pwmsg'); msg.className = 'prof-msg'; msg.textContent = 'Updating…';
+        const body = { current: $('pf-cur').value, next: $('pf-new').value };
+        try {
+          const r = await fetch('/api/auth/change-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) { msg.className = 'prof-msg err'; msg.textContent = d.error || 'Failed.'; return; }
+          $('pf-cur').value = ''; $('pf-new').value = '';
+          msg.className = 'prof-msg ok'; msg.textContent = 'Password updated.';
+        } catch (e) { msg.className = 'prof-msg err'; msg.textContent = 'Request failed.'; }
+      });
+
+      $('pf-logout').addEventListener('click', async () => {
+        try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (e) {}
+        currentUser = null;
+        if (typeof showHome === 'function') showHome();
+        showGate();
+      });
+
+      loadConfig();
+      check();
+    })();
+  </script>
+</body>
+</html>
