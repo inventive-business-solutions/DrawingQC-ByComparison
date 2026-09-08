@@ -69,6 +69,12 @@ public static class ConsList
 
     public static List<string> Projects()
     {
+        if (Db.Enabled)
+        {
+            var l = Db.LoadProjects();
+            if (l.Count == 0) { l = DefaultProjects.ToList(); Db.SaveProjects(l); }
+            return l;
+        }
         lock (Gate)
         {
             var f = ProjectsFile();
@@ -83,6 +89,12 @@ public static class ConsList
         }
     }
 
+    private static void PersistProjects(List<string> list)
+    {
+        if (Db.Enabled) { Db.SaveProjects(list); return; }
+        File.WriteAllText(ProjectsFile(), JsonSerializer.Serialize(list, JsonOpts));
+    }
+
     public static (bool ok, string err) AddProject(string name)
     {
         name = (name ?? "").Trim();
@@ -93,7 +105,7 @@ public static class ConsList
             if (list.Any(p => p.Equals(name, StringComparison.OrdinalIgnoreCase)))
                 return (false, "That project already exists.");
             list.Add(name);
-            File.WriteAllText(ProjectsFile(), JsonSerializer.Serialize(list, JsonOpts));
+            PersistProjects(list);
             return (true, "");
         }
     }
@@ -108,7 +120,8 @@ public static class ConsList
             var match = list.FirstOrDefault(p => p.Equals(name, StringComparison.OrdinalIgnoreCase));
             if (match == null) return (false, "That project does not exist.");
             list.Remove(match);
-            File.WriteAllText(ProjectsFile(), JsonSerializer.Serialize(list, JsonOpts));
+            PersistProjects(list);
+            if (Db.Enabled) Db.DeletePlatformData(match);            // remove its file/category rows
             try { var dir = Path.Combine(Root(), Safe(match)); if (Directory.Exists(dir)) Directory.Delete(dir, true); }
             catch { }
             return (true, "");
@@ -119,14 +132,18 @@ public static class ConsList
 
     private static CatManifest LoadManifest(string p, string c)
     {
+        if (Db.Enabled) return Db.LoadManifest(p, c);
         var f = ManifestPath(p, c);
         if (!File.Exists(f)) return new CatManifest();
         try { return JsonSerializer.Deserialize<CatManifest>(File.ReadAllText(f)) ?? new CatManifest(); }
         catch { return new CatManifest(); }
     }
 
-    private static void SaveManifest(string p, string c, CatManifest m) =>
+    private static void SaveManifest(string p, string c, CatManifest m)
+    {
+        if (Db.Enabled) { Db.SaveManifest(p, c, m); return; }
         File.WriteAllText(ManifestPath(p, c), JsonSerializer.Serialize(m, JsonOpts));
+    }
 
     // Assign a stable id + extension to any legacy entry that lacks them. Returns true if changed.
     private static bool EnsureIds(CatManifest m)
@@ -460,6 +477,13 @@ public static class ConsList
 
     private static int BumpCombinedRev(string platform, bool excel)
     {
+        if (Db.Enabled)
+        {
+            var (e, p) = Db.LoadCombinedRev(platform);
+            if (excel) e++; else p++;
+            Db.SaveCombinedRev(platform, e, p);
+            return excel ? e : p;
+        }
         Directory.CreateDirectory(Path.Combine(Root(), Safe(platform)));
         var f = CombinedFile(platform);
         CombinedRev cr;

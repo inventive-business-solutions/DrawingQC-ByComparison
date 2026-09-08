@@ -295,9 +295,9 @@ CREATE TABLE IF NOT EXISTS mto_runs (
                                 VALUES(@p,@c,@er,@pr,@d) ON CONFLICT (platform,category) DO NOTHING",
                         ("p", plat), ("c", cat), ("er", m.ExcelRev), ("pr", m.PdfRev), ("d", m.LastExcelDate ?? ""));
                     int ord = 0;
-                    foreach (var e in m.ExcelEntries) { InsertFile(con, plat, cat, "excel", e, ord++); files++; }
+                    foreach (var e in m.ExcelEntries) { InsertFile(con, null, plat, cat, "excel", e, ord++); files++; }
                     ord = 0;
-                    foreach (var e in m.PdfEntries) { InsertFile(con, plat, cat, "pdf", e, ord++); files++; }
+                    foreach (var e in m.PdfEntries) { InsertFile(con, null, plat, cat, "pdf", e, ord++); files++; }
                 }
                 // Combined-download revisions
                 var cj = Path.Combine(cl, plat, "_combined.json");
@@ -319,13 +319,99 @@ CREATE TABLE IF NOT EXISTS mto_runs (
         Console.WriteLine($"[Db] Imported from JSON: {users} user(s), {projects} project(s), {files} ConsList file(s).");
     }
 
-    private static void InsertFile(NpgsqlConnection con, string plat, string cat, string kind, ConsEntry e, int ord)
+    private static void InsertFile(NpgsqlConnection con, NpgsqlTransaction? tx, string plat, string cat, string kind, ConsEntry e, int ord)
     {
         if (string.IsNullOrEmpty(e.Id)) e.Id = Guid.NewGuid().ToString("N");
         if (string.IsNullOrEmpty(e.Ext)) e.Ext = kind == "pdf" ? ".pdf" : ".xlsx";
-        Exec(con, @"INSERT INTO conslist_files(id,platform,category,kind,ext,file_date,name,cnt,ord)
-                    VALUES(@id,@p,@c,@k,@x,@d,@n,@ct,@o) ON CONFLICT (id) DO NOTHING",
+        Exec(con, tx, @"INSERT INTO conslist_files(id,platform,category,kind,ext,file_date,name,cnt,ord)
+                        VALUES(@id,@p,@c,@k,@x,@d,@n,@ct,@o) ON CONFLICT (id) DO NOTHING",
             ("id", e.Id), ("p", plat), ("c", cat), ("k", kind), ("x", e.Ext),
             ("d", e.Date), ("n", e.Name), ("ct", e.Count), ("o", ord));
+    }
+
+    // ---------- ConsList metadata (used by ConsList when Db.Enabled) ----------
+
+    public static List<string> LoadProjects()
+    {
+        var list = new List<string>();
+        using var con = Open();
+        using var cmd = new NpgsqlCommand("SELECT name FROM conslist_projects ORDER BY ord", con);
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) list.Add(r.GetString(0));
+        return list;
+    }
+
+    public static void SaveProjects(List<string> names)
+    {
+        using var con = Open();
+        using var tx = con.BeginTransaction();
+        Exec(con, tx, "DELETE FROM conslist_projects");
+        for (int i = 0; i < names.Count; i++)
+            Exec(con, tx, "INSERT INTO conslist_projects(name,ord) VALUES(@n,@o)", ("n", names[i]), ("o", i));
+        tx.Commit();
+    }
+
+    public static void DeletePlatformData(string platform)
+    {
+        using var con = Open();
+        Exec(con, "DELETE FROM conslist_files WHERE platform=@p", ("p", platform));
+        Exec(con, "DELETE FROM conslist_category WHERE platform=@p", ("p", platform));
+    }
+
+    public static CatManifest LoadManifest(string platform, string category)
+    {
+        var m = new CatManifest();
+        using var con = Open();
+        using (var cmd = new NpgsqlCommand("SELECT excel_rev,pdf_rev,last_excel_date FROM conslist_category WHERE platform=@p AND category=@c", con))
+        {
+            cmd.Parameters.AddWithValue("p", platform); cmd.Parameters.AddWithValue("c", category);
+            using var r = cmd.ExecuteReader();
+            if (r.Read()) { m.ExcelRev = r.GetInt32(0); m.PdfRev = r.GetInt32(1); m.LastExcelDate = r.IsDBNull(2) ? "" : r.GetString(2); }
+        }
+        using (var cmd = new NpgsqlCommand("SELECT id,ext,file_date,name,cnt,kind FROM conslist_files WHERE platform=@p AND category=@c ORDER BY ord", con))
+        {
+            cmd.Parameters.AddWithValue("p", platform); cmd.Parameters.AddWithValue("c", category);
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                var e = new ConsEntry { Id = r.GetString(0), Ext = r.GetString(1), Date = r.GetString(2), Name = r.GetString(3), Count = r.GetInt32(4) };
+                if (r.GetString(5) == "excel") m.ExcelEntries.Add(e); else m.PdfEntries.Add(e);
+            }
+        }
+        return m;
+    }
+
+    public static void SaveManifest(string platform, string category, CatManifest m)
+    {
+        using var con = Open();
+        using var tx = con.BeginTransaction();
+        Exec(con, tx, @"INSERT INTO conslist_category(platform,category,excel_rev,pdf_rev,last_excel_date)
+                        VALUES(@p,@c,@er,@pr,@d) ON CONFLICT (platform,category)
+                        DO UPDATE SET excel_rev=excluded.excel_rev, pdf_rev=excluded.pdf_rev, last_excel_date=excluded.last_excel_date",
+            ("p", platform), ("c", category), ("er", m.ExcelRev), ("pr", m.PdfRev), ("d", m.LastExcelDate ?? ""));
+        Exec(con, tx, "DELETE FROM conslist_files WHERE platform=@p AND category=@c", ("p", platform), ("c", category));
+        int ord = 0;
+        foreach (var e in m.ExcelEntries) InsertFile(con, tx, platform, category, "excel", e, ord++);
+        ord = 0;
+        foreach (var e in m.PdfEntries) InsertFile(con, tx, platform, category, "pdf", e, ord++);
+        tx.Commit();
+    }
+
+    public static (int excel, int pdf) LoadCombinedRev(string platform)
+    {
+        using var con = Open();
+        using var cmd = new NpgsqlCommand("SELECT excel_rev,pdf_rev FROM conslist_category WHERE platform=@p AND category='Combined'", con);
+        cmd.Parameters.AddWithValue("p", platform);
+        using var r = cmd.ExecuteReader();
+        return r.Read() ? (r.GetInt32(0), r.GetInt32(1)) : (0, 0);
+    }
+
+    public static void SaveCombinedRev(string platform, int excel, int pdf)
+    {
+        using var con = Open();
+        Exec(con, @"INSERT INTO conslist_category(platform,category,excel_rev,pdf_rev,last_excel_date)
+                    VALUES(@p,'Combined',@e,@f,'') ON CONFLICT (platform,category)
+                    DO UPDATE SET excel_rev=excluded.excel_rev, pdf_rev=excluded.pdf_rev",
+            ("p", platform), ("e", excel), ("f", pdf));
     }
 }
