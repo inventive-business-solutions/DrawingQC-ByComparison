@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { AuthGate } from "@/components/AuthGate";
 import { ConsListView } from "@/components/ConsListView";
+import { Home } from "@/components/Home";
 import { PlaceholderView } from "@/components/PlaceholderView";
 import { QcView } from "@/components/QcView";
 import { TagReportView } from "@/components/TagReportView";
@@ -16,7 +17,8 @@ export default function Page() {
 }
 
 function Workspace({ user }: { user: User }) {
-  const [client, setClient] = useState<ClientName>("S2NERGY");
+  // No client selected → the neutral Home/welcome screen, mirroring the C# app.
+  const [client, setClient] = useState<ClientName | null>(null);
   const [view, setView] = useState<ViewId>("qc");
 
   // Picking a client keeps the current tool if that client offers it, else falls back
@@ -34,38 +36,45 @@ function Workspace({ user }: { user: User }) {
 
   return (
     <>
-      <Sidebar user={user} />
+      {/* Status key belongs only to QC Check; Workspace returns to Home. */}
+      <Sidebar user={user} showStatusKey={client !== null && view === "qc"} onHome={() => setClient(null)} />
       <main className="px-5 pb-12 pt-6 md:ml-[252px] md:px-10 md:pb-[60px] md:pt-[30px]">
         <Toolbar client={client} view={view} onClient={selectClient} onView={setView} />
 
-        <div className={show("qc")}>
-          <QcView client={client} />
-        </div>
+        {client === null ? (
+          <Home />
+        ) : (
+          <>
+            <div className={show("qc")}>
+              <QcView client={client} />
+            </div>
 
-        {view === "conslist" && <ConsListView client={client} />}
-        {view === "tagreport" && <TagReportView client={client} />}
+            {view === "conslist" && <ConsListView client={client} />}
+            {view === "tagreport" && <TagReportView client={client} />}
 
-        <div className={show("mto")}>
-          <PlaceholderView
-            title="MTO Check"
-            client={client}
-            sub="Material Take-Off verification."
-            heading="MTO Check is set up"
-            body="This tool is wired into the S2NERGY workspace and ready for its logic. Tell me what an MTO Check should do — the inputs it takes and the output you expect — and I'll build it out."
-            icon={<TableIcon className="h-[30px] w-[30px]" />}
-          />
-        </div>
+            <div className={show("mto")}>
+              <PlaceholderView
+                title="MTO Check"
+                client={client}
+                sub="Material Take-Off verification."
+                heading="MTO Check is set up"
+                body="This tool is wired into the S2NERGY workspace and ready for its logic. Tell me what an MTO Check should do — the inputs it takes and the output you expect — and I'll build it out."
+                icon={<TableIcon className="h-[30px] w-[30px]" />}
+              />
+            </div>
 
-        <div className={show("empty")}>
-          <PlaceholderView
-            title="No tools yet"
-            client={client}
-            sub="Tools for this client haven't been added."
-            heading="Nothing here — yet"
-            body="This client is set up but has no tools configured. Tell me which tools it should have and I'll add them, just like S2NERGY."
-            icon={<SearchIcon className="h-[30px] w-[30px]" />}
-          />
-        </div>
+            <div className={show("empty")}>
+              <PlaceholderView
+                title="No tools yet"
+                client={client}
+                sub="Tools for this client haven't been added."
+                heading="Nothing here — yet"
+                body="This client is set up but has no tools configured. Tell me which tools it should have and I'll add them, just like S2NERGY."
+                icon={<SearchIcon className="h-[30px] w-[30px]" />}
+              />
+            </div>
+          </>
+        )}
       </main>
     </>
   );

@@ -3,14 +3,14 @@
 import { CLIENTS, TOOLS, type ClientName, type ViewId } from "@/lib/types";
 
 interface Props {
-  client: ClientName;
+  client: ClientName | null;
   view: ViewId;
   onClient: (c: ClientName) => void;
   onView: (v: ViewId) => void;
 }
 
 export function Toolbar({ client, view, onClient, onView }: Props) {
-  const tools = TOOLS[client];
+  const tools = client ? TOOLS[client] : [];
 
   return (
     <div className="mb-[26px] flex flex-col gap-3.5">
@@ -31,6 +31,8 @@ export function Toolbar({ client, view, onClient, onView }: Props) {
         ))}
       </div>
 
+      {/* Tool tabs only once a client is chosen; the Home screen has none. */}
+      {client && (
       <div className="flex min-h-[34px] flex-wrap items-center gap-2.5">
         {tools.length === 0 ? (
           <span className="text-[13px] italic text-faint">No tools yet for {client}</span>
@@ -51,6 +53,7 @@ export function Toolbar({ client, view, onClient, onView }: Props) {
           ))
         )}
       </div>
+      )}
     </div>
   );
 }

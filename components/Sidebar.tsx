@@ -2,7 +2,7 @@
 
 import { logout } from "@/lib/api";
 import type { User } from "@/lib/types";
-import { DocIcon, GridIcon } from "./icons";
+import { GearIcon, GridIcon } from "./icons";
 
 const LEGEND = [
   { color: "bg-match-fg", label: "Matched", text: "file name found on the sheet" },
@@ -19,7 +19,7 @@ function initials(user: User): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-export function Sidebar({ user }: { user: User }) {
+export function Sidebar({ user, showStatusKey = true, onHome }: { user: User; showStatusKey?: boolean; onHome?: () => void }) {
   async function signOut() {
     try {
       await logout();
@@ -36,31 +36,37 @@ export function Sidebar({ user }: { user: User }) {
         px-5 py-3.5 text-[#cdd4e2]
         md:fixed md:inset-y-0 md:left-0 md:w-[252px] md:flex-col md:flex-nowrap md:items-stretch md:px-[18px] md:py-[22px]"
     >
-      <div className="flex items-center gap-[11px] text-[17px] font-bold text-white md:px-1.5 md:pt-1 md:pb-6">
+      <div className="flex items-center gap-[11px] whitespace-nowrap text-[16px] font-bold text-white md:px-1.5 md:pt-1 md:pb-6">
         <span className="grad grid h-8 w-8 shrink-0 place-items-center rounded-[9px] text-white shadow-[0_6px_16px_rgba(99,60,220,.45)]">
-          <DocIcon className="h-[17px] w-[17px]" />
+          <GearIcon className="h-[17px] w-[17px]" />
         </span>
         Support Automation
       </div>
 
       <nav className="flex flex-row gap-[3px] md:flex-col">
-        <span className="grad flex cursor-pointer items-center gap-[11px] rounded-lg px-3 py-2.5 text-sm font-medium text-white shadow-[0_8px_20px_rgba(99,60,220,.4)]">
+        <button
+          type="button"
+          onClick={onHome}
+          className="grad flex cursor-pointer items-center gap-[11px] rounded-lg px-3 py-2.5 text-sm font-medium text-white shadow-[0_8px_20px_rgba(99,60,220,.4)]"
+        >
           <GridIcon className="h-[17px] w-[17px] shrink-0" />
           Workspace
-        </span>
+        </button>
       </nav>
 
-      <div className="hidden px-1.5 md:mt-[26px] md:block">
-        <div className="mb-3 text-[11px] uppercase tracking-[.11em] text-[#7c869c]">Status key</div>
-        {LEGEND.map((l) => (
-          <div key={l.label} className="mb-[11px] flex items-center gap-2.5 text-[12.5px] leading-[1.35]">
-            <span className={`mt-px h-[11px] w-[11px] shrink-0 rounded-[3px] ${l.color}`} />
-            <span>
-              <b className="font-semibold text-white">{l.label}</b> — {l.text}
-            </span>
-          </div>
-        ))}
-      </div>
+      {showStatusKey && (
+        <div className="hidden px-1.5 md:mt-[26px] md:block">
+          <div className="mb-3 text-[11px] uppercase tracking-[.11em] text-[#7c869c]">Status key</div>
+          {LEGEND.map((l) => (
+            <div key={l.label} className="mb-[11px] flex items-center gap-2.5 text-[12.5px] leading-[1.35]">
+              <span className={`mt-px h-[11px] w-[11px] shrink-0 rounded-[3px] ${l.color}`} />
+              <span>
+                <b className="font-semibold text-white">{l.label}</b> — {l.text}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="ml-auto flex items-center gap-2.5 md:ml-0 md:mt-auto md:w-full">
         <span className="grad grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full text-[14px] font-bold text-white">
